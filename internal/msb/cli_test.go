@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +17,8 @@ import (
 )
 
 const (
+	testWindows   = "windows"
+	testWait      = "wait"
 	testNotFound  = "not found"
 	testInvalid   = "invalid"
 	testVolume    = "cache"
@@ -78,7 +83,7 @@ func (s *clientSuite) TestExecStreamsAndArgv() {
 	var stdout, stderr bytes.Buffer
 	err := s.client.Exec(context.Background(), wsName, ExecRequest{
 		Argv: []string{"echo", "one argument; $literal"}, User: testUser,
-		Stdin: bytes.NewReader(input), Stdout: &stdout, Stderr: &stderr,
+		Stdin: io.NopCloser(bytes.NewReader(input)), Stdout: &stdout, Stderr: &stderr,
 	})
 	s.Require().NoError(err)
 	s.Equal(input, stdout.Bytes())
@@ -117,13 +122,13 @@ type cancelWriter struct{ cancel context.CancelFunc }
 func (w cancelWriter) Write(p []byte) (int, error) { w.cancel(); return len(p), nil }
 
 func (s *clientSuite) TestExecCancellation() {
-	s.T().Setenv("DEVSY_MSB_TEST_MODE", "wait")
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", testWait)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := s.client.Exec(
 		ctx,
 		wsName,
-		ExecRequest{Argv: []string{"wait"}, Stdout: cancelWriter{cancel}},
+		ExecRequest{Argv: []string{testWait}, Stdout: cancelWriter{cancel}},
 	)
 	s.Error(err)
 	s.ErrorIs(ctx.Err(), context.Canceled)
@@ -170,6 +175,76 @@ func (s *clientSuite) TestCreateVolumeFailuresAndRedaction() {
 	s.Require().Error(err)
 	s.Contains(err.Error(), "TOKEN=***")
 	s.NotContains(err.Error(), "secret-value")
+}
+
+func (s *clientSuite) TestExecCancellationWithBlockedInput() {
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", testWait)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	reader, writer := io.Pipe()
+	defer func() { _ = writer.Close() }()
+	started := make(chan struct{})
+	input := &startedReader{ReadCloser: reader, started: started}
+	err := s.client.Exec(ctx, wsName, ExecRequest{
+		Argv: []string{testWait}, Stdin: input,
+		Stdout: inputCancelWriter{cancel: cancel, started: started},
+	})
+	s.Error(err)
+	s.ErrorIs(ctx.Err(), context.Canceled)
+	_, err = writer.Write([]byte("closed"))
+	s.ErrorIs(err, io.ErrClosedPipe)
+}
+
+func (s *clientSuite) TestExecClosesBlockedInputOnExit() {
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", "early-exit")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	reader, writer := io.Pipe()
+	defer func() { _ = writer.Close() }()
+	s.NoError(s.client.Exec(ctx, wsName, ExecRequest{Argv: []string{"exit"}, Stdin: reader}))
+	s.NoError(ctx.Err())
+	_, err := writer.Write([]byte("closed"))
+	s.ErrorIs(err, io.ErrClosedPipe)
+}
+
+func (s *clientSuite) TestExecPreservesInputFailure() {
+	inputErr := errors.New("fixture input failure")
+	err := s.client.Exec(context.Background(), wsName, ExecRequest{
+		Argv:  []string{"cat"},
+		Stdin: io.NopCloser(failedReader{err: inputErr}), Stderr: io.Discard,
+	})
+	s.ErrorIs(err, inputErr)
+}
+
+func (s *clientSuite) TestInstallationRejectsUnusablePaths() {
+	dir := s.T().TempDir()
+	s.Error((Client{Binary: dir}).EnsureInstalled(context.Background()))
+	if runtime.GOOS != testWindows {
+		file := filepath.Join(dir, "not-executable")
+		s.Require().NoError(os.WriteFile(file, []byte("not executable"), 0o600))
+		s.Error((Client{Binary: file}).EnsureInstalled(context.Background()))
+	}
+}
+
+func (s *clientSuite) TestDiscoverySkipsUnusableHomeCandidate() {
+	home := s.T().TempDir()
+	s.T().Setenv("HOME", home)
+	s.T().Setenv("USERPROFILE", home)
+	s.T().Setenv("PATH", s.T().TempDir())
+	s.Require().NoError(os.MkdirAll(filepath.Join(home, ".local", "bin", "msb"), 0o700))
+	dir := filepath.Join(home, ".microsandbox", "bin")
+	s.Require().NoError(os.MkdirAll(dir, 0o700))
+	filename := "msb"
+	if runtime.GOOS == testWindows {
+		filename += ".exe"
+	}
+	binary, err := os.ReadFile(s.client.Binary)
+	s.Require().NoError(err)
+	candidate := filepath.Join(dir, filename)
+	// #nosec G306,G703 -- executable test fixture in a private temporary home.
+	s.Require().NoError(os.WriteFile(candidate, binary, 0o700))
+	s.Equal(candidate, (Client{}).binary())
+	s.NoError((Client{}).EnsureInstalled(context.Background()))
 }
 
 func (s *clientSuite) args() []string {
@@ -245,7 +320,10 @@ func writeHelper(w io.Writer, value string) int {
 }
 
 func execHelper(mode string) int {
-	if mode == "wait" {
+	if mode == "early-exit" {
+		return 0
+	}
+	if mode == testWait {
 		if _, err := io.WriteString(os.Stdout, "ready"); err != nil {
 			return 1
 		}
@@ -291,3 +369,29 @@ func logsHelper() int {
 	}
 	return 0
 }
+
+type startedReader struct {
+	io.ReadCloser
+	started chan struct{}
+	once    sync.Once
+}
+
+func (r *startedReader) Read(p []byte) (int, error) {
+	r.once.Do(func() { close(r.started) })
+	return r.ReadCloser.Read(p)
+}
+
+type inputCancelWriter struct {
+	cancel  context.CancelFunc
+	started <-chan struct{}
+}
+
+func (w inputCancelWriter) Write(p []byte) (int, error) {
+	<-w.started
+	w.cancel()
+	return len(p), nil
+}
+
+type failedReader struct{ err error }
+
+func (r failedReader) Read(_ []byte) (int, error) { return 0, r.err }

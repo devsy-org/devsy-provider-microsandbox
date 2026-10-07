@@ -22,12 +22,7 @@ type Client struct {
 
 // EnsureInstalled checks discovery without imposing provisioning version policy.
 func (c Client) EnsureInstalled(_ context.Context) error {
-	bin := c.binary()
-	if filepath.IsAbs(bin) {
-		if _, err := os.Stat(bin); err == nil {
-			return nil
-		}
-	} else if _, err := exec.LookPath(bin); err == nil {
+	if _, err := exec.LookPath(c.binary()); err == nil {
 		return nil
 	}
 	return errors.New(
@@ -125,10 +120,9 @@ func (c Client) Exec(ctx context.Context, sandbox string, req ExecRequest) error
 	}
 	// #nosec G204 -- args are a resolved binary path plus the caller's command
 	cmd := exec.CommandContext(ctx, c.binary(), args...)
-	cmd.Stdin = req.Stdin
 	cmd.Stdout = req.Stdout
 	cmd.Stderr = req.Stderr
-	return cmd.Run()
+	return runExec(cmd, req.Stdin)
 }
 
 // Logs sends both backend output streams to the supplied writer.
@@ -189,12 +183,12 @@ func (c Client) binary() string {
 		return p
 	}
 	if home, err := os.UserHomeDir(); err == nil {
-		for _, c := range []string{
+		for _, candidate := range []string{
 			filepath.Join(home, ".local", "bin", "msb"),
 			filepath.Join(home, ".microsandbox", "bin", "msb"),
 		} {
-			if _, statErr := os.Stat(c); statErr == nil {
-				return c
+			if binary, err := exec.LookPath(candidate); err == nil {
+				return binary
 			}
 		}
 	}

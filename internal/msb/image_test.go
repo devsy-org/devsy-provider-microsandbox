@@ -25,6 +25,7 @@ import (
 )
 
 const (
+	testLinux    = "linux"
 	modeLoadFail = "load-fail"
 	imageFixture = "docker image bytes\x00\xff"
 	modeDocker   = "docker"
@@ -72,21 +73,7 @@ func (s *clientSuite) TestImageRegistryFallback() {
 		name.Insecure,
 	)
 	s.Require().NoError(err)
-	image, err := mutate.ConfigFile(
-		empty.Image,
-		&v1.ConfigFile{OS: "linux", Architecture: runtime.GOARCH},
-	)
-	s.Require().NoError(err)
-	index := mutate.AppendManifests(
-		empty.Index,
-		mutate.IndexAddendum{
-			Add: image,
-			Descriptor: v1.Descriptor{
-				Platform: &v1.Platform{OS: "linux", Architecture: runtime.GOARCH},
-			},
-		},
-	)
-	s.Require().NoError(remote.WriteIndex(ref, index))
+	s.Require().NoError(remote.WriteIndex(ref, s.registryIndex()))
 	s.T().Setenv("PATH", s.T().TempDir())
 	dockerConfig := s.T().TempDir()
 	configJSON, err := json.Marshal(map[string]any{"auths": map[string]any{
@@ -104,8 +91,9 @@ func (s *clientSuite) TestImageRegistryFallback() {
 	s.Require().NoError(err)
 	config, err := loaded.ConfigFile()
 	s.Require().NoError(err)
-	s.Equal("linux", config.OS)
+	s.Equal(testLinux, config.OS)
 	s.Equal(runtime.GOARCH, config.Architecture)
+	s.Equal([]string{"MARKER=host"}, config.Config.Env)
 	args := s.args()
 	s.Equal([]string{"load", "-i"}, args[:2])
 	_, err = os.Stat(args[2])
@@ -152,7 +140,7 @@ func (s *clientSuite) installDockerHelper() {
 	s.Require().NoError(err)
 	dir := s.T().TempDir()
 	filename := "docker"
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == testWindows {
 		filename += ".exe"
 	}
 	// #nosec G306,G703 -- the test fixture must be executable; its directory is private.
@@ -225,4 +213,40 @@ func saveHelper(mode string) int {
 		return 1
 	}
 	return 0
+}
+
+func (s *clientSuite) registryIndex() v1.ImageIndex {
+	image, err := mutate.ConfigFile(
+		empty.Image,
+		&v1.ConfigFile{
+			OS:           testLinux,
+			Architecture: runtime.GOARCH,
+			Config:       v1.Config{Env: []string{"MARKER=host"}},
+		},
+	)
+	s.Require().NoError(err)
+	otherArch := "arm64"
+	if runtime.GOARCH == otherArch {
+		otherArch = "amd64"
+	}
+	other, err := mutate.ConfigFile(empty.Image, &v1.ConfigFile{
+		OS: testLinux, Architecture: otherArch,
+		Config: v1.Config{Env: []string{"MARKER=other"}},
+	})
+	s.Require().NoError(err)
+	return mutate.AppendManifests(
+		empty.Index,
+		mutate.IndexAddendum{
+			Add: other,
+			Descriptor: v1.Descriptor{
+				Platform: &v1.Platform{OS: testLinux, Architecture: otherArch},
+			},
+		},
+		mutate.IndexAddendum{
+			Add: image,
+			Descriptor: v1.Descriptor{
+				Platform: &v1.Platform{OS: testLinux, Architecture: runtime.GOARCH},
+			},
+		},
+	)
 }
