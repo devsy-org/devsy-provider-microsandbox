@@ -16,8 +16,8 @@ while the external runtime is implemented and tested for parity. This repository
 does not change existing provider configurations.
 
 Image snapshot preparation follows the current built-in driver; workspace owner
-resolution and the server mapping remain to be implemented. The next stages
-implement the Runtime Protocol v1 adapter using the
+resolution is available, and the server mapping remains to be implemented.
+The next stages implement the Runtime Protocol v1 adapter using the
 [Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
 and test an external provider alias before changing the built-in manifest.
 Image builds, tags, and publication remain Devsy image-backend responsibilities.
@@ -32,6 +32,21 @@ private archive. Preparation captures registry layers before returning, so impor
 and inspection can use a different context and no longer need registry access. Registry access uses the host's Docker configuration and
 credential helpers. Kubernetes service-account registry authentication is not
 part of this local-runtime client.
+
+Workspace ownership uses the developer identity (`remoteUser`, then workload
+`user`, then root) without changing the workload execution user. The resolver
+reads `/etc/passwd` and `/etc/group` from the prepared image, respecting layer
+replacements, whiteouts, and opaque directories without running image code.
+Account-file and account-directory links are rejected rather than exposing stale
+metadata from lower layers. Explicit numeric
+UID:GID and root identities need no account lookup. Missing or invalid accounts
+fail validation before runtime mutation. Only the primary workspace bind mount
+needs an owner; named volumes, tmpfs, and `stat-virt=off` skip resolution. A
+non-root Dockerless identity still requires a prebuilt developer image or disabled
+stat virtualization with private host permissions, because it cannot be resolved
+from the runner image before VM creation. Resolved IDs control guest mount
+ownership and do not change host inode ownership. The server adapter will apply
+these IDs and validate mount configuration before import, stop, remove, or create.
 
 Client tests use subprocess fixtures and a local OCI registry; they do not
 require an installed MicroSandbox runtime or Docker daemon. Real runtime parity
