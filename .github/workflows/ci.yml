@@ -1,0 +1,104 @@
+name: MicroSandbox Provider
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+      - run: go vet ./...
+      - name: Build and smoke-test bootstrap entry point
+        shell: bash
+        run: |
+          go build -ldflags '-X main.version=ci' -o "$RUNNER_TEMP/runtime.exe" ./cmd/devsy-runtime-microsandbox
+          "$RUNNER_TEMP/runtime.exe" --version | tee "$RUNNER_TEMP/version.txt"
+          expected='devsy-runtime-microsandbox ci'
+          actual="$(cat "$RUNNER_TEMP/version.txt")"
+          test "$actual" = "$expected"
+          if "$RUNNER_TEMP/runtime.exe" serve; then
+            echo 'Bootstrap must reject serving before runtime implementation.' >&2
+            exit 1
+          fi
+  pre-commit:
+    name: Pre-commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - run: prek run --all-files
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - run: task lint
+  release-please:
+    name: Release Please
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, pre-commit, lint]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEVSY_GITHUB_APP_ID }}
+          private-key: ${{ secrets.DEVSY_GITHUB_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Enable release PR auto-merge
+        shell: bash
+        run: |
+          release_pr="$(gh pr list --state open --base main \
+            --head release-please--branches--main --label 'autorelease: pending' \
+            --json number --jq '.[].number')"
+          if [[ -z "$release_pr" ]]; then
+            echo 'No pending release PR.'
+            exit 0
+          fi
+          if [[ ! "$release_pr" =~ ^[0-9]+$ ]]; then
+            echo 'Expected exactly one pending release PR.' >&2
+            exit 1
+          fi
+          release_head="$(gh pr view "$release_pr" --json headRefOid --jq .headRefOid)"
+          behind="$(gh api "repos/$GH_REPO/compare/main...$release_head" --jq .behind_by)"
+          if [[ "$behind" -gt 0 ]]; then
+            gh pr update-branch "$release_pr"
+          fi
+          gh pr merge --auto --squash "$release_pr"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
