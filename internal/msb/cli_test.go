@@ -28,8 +28,9 @@ const (
 
 type clientSuite struct {
 	suite.Suite
-	client Client
-	record string
+	client  Client
+	record  string
+	archive string
 }
 
 func TestClient(t *testing.T) { suite.Run(t, new(clientSuite)) }

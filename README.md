@@ -15,13 +15,20 @@ Use Devsy's built-in `microsandbox` provider for workspaces. It remains supporte
 while the external runtime is implemented and tested for parity. This repository
 does not change existing provider configurations.
 
-The next stages implement the Runtime Protocol v1 adapter using the
+Image snapshot preparation follows the current built-in driver; workspace owner
+resolution and the server mapping remain to be implemented. The next stages
+implement the Runtime Protocol v1 adapter using the
 [Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
 and test an external provider alias before changing the built-in manifest.
 Image builds, tags, and publication remain Devsy image-backend responsibilities.
-The client first imports locally built Docker images using `docker save | msb load`.
-Otherwise it tries `msb pull`, then a Linux image for the host architecture from
-an OCI registry. Registry fallback uses the host's Docker configuration and
+The client prepares one immutable image snapshot before validation or import.
+Locally built images must be saved by the configured Docker-compatible CLI; they
+never fall back to a registry. Other images use a cached Docker image when
+available, otherwise a Linux image for the host architecture from an OCI registry.
+The same snapshot is imported under a content-derived tag after validation, so a
+moving source tag cannot change the image used to create the VM. Callers keep the
+snapshot open until validation and import finish, then close it to remove any
+local archive. Registry access uses the host's Docker configuration and
 credential helpers. Kubernetes service-account registry authentication is not
 part of this local-runtime client.
 
