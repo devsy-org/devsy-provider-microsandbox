@@ -4,19 +4,30 @@ External MicroSandbox runtime provider for [Devsy](https://github.com/devsy-org/
 
 ## Status
 
-This repository currently contains the project and quality-control tooling.
+This repository contains the project tooling and the extracted MicroSandbox CLI
+client in `internal/msb`. The client covers lifecycle commands, non-PTY byte
+streams, mount encoding, version parsing, and image loading.
 The executable supports `--version` and deliberately fails other invocations;
 it does not yet serve Runtime Protocol v1 or create workspaces. There is no
 installable external provider manifest or runtime release asset yet.
 
 Use Devsy's built-in `microsandbox` provider for workspaces. It remains supported
-while the MicroSandbox client is extracted and the external runtime is tested
-for parity. This repository does not change existing provider configurations.
+while the external runtime is implemented and tested for parity. This repository
+does not change existing provider configurations.
 
-The next stages migrate the MicroSandbox client, implement the Runtime Protocol
-v1 adapter using the [Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
+The next stages implement the Runtime Protocol v1 adapter using the
+[Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
 and test an external provider alias before changing the built-in manifest.
 Image builds, tags, and publication remain Devsy image-backend responsibilities.
+The client first imports locally built Docker images using `docker save | msb load`.
+Otherwise it tries `msb pull`, then a Linux image for the host architecture from
+an OCI registry. Registry fallback uses the host's Docker configuration and
+credential helpers. Kubernetes service-account registry authentication is not
+part of this local-runtime client.
+
+Client tests use subprocess fixtures and a local OCI registry; they do not
+require an installed MicroSandbox runtime or Docker daemon. Real runtime parity
+validation will accompany the external provider adapter.
 
 ## Development
 
