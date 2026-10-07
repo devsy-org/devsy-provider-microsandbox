@@ -18,6 +18,8 @@ import (
 // in its standard per-user installation directories.
 type Client struct {
 	Binary string
+	// DockerBinary selects a Docker-compatible CLI for local image snapshots.
+	DockerBinary string
 }
 
 // EnsureInstalled checks discovery without imposing provisioning version policy.

@@ -27,35 +27,46 @@ import (
 const (
 	testLinux    = "linux"
 	modeLoadFail = "load-fail"
-	imageFixture = "docker image bytes\x00\xff"
 	modeDocker   = "docker"
-	modePullFail = "pull-fail"
+	modeSaveFail = "save-fail"
+	imageSave    = "save"
+	imageLoad    = "load"
+	hostMarker   = "MARKER=host"
 )
 
 func (s *clientSuite) TestImageLocalDockerLoad() {
 	s.installDockerHelper()
 	s.T().Setenv("DEVSY_MSB_TEST_MODE", modeDocker)
-	s.Require().NoError(s.client.EnsureImage(context.Background(), testImg))
+	s.Require().NoError(s.importImage(context.Background(), testImg, false))
 	data, err := os.ReadFile(s.record + ".tar")
 	s.Require().NoError(err)
-	s.Equal(imageFixture, string(data))
+	loaded, err := tarball.Image(
+		func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil },
+		nil,
+	)
+	s.Require().NoError(err)
+	cfg, err := loaded.ConfigFile()
+	s.Require().NoError(err)
+	s.Equal([]string{hostMarker}, cfg.Config.Env)
 }
 
 func (s *clientSuite) TestImageDockerSaveFailure() {
 	s.installDockerHelper()
-	s.T().Setenv("DEVSY_MSB_TEST_MODE", "save-fail")
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", modeSaveFail)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	s.ErrorContains(s.client.EnsureImage(ctx, testImg), "docker save")
+	s.ErrorContains(s.importImage(ctx, testImg, true), "save final local image")
 }
 
-func (s *clientSuite) TestImagePullWithoutDocker() {
+func (s *clientSuite) TestImageMissingBuiltImageDoesNotPull() {
 	s.T().Setenv("PATH", s.T().TempDir())
-	s.Require().NoError(s.client.EnsureImage(context.Background(), testImg))
-	s.Equal([]string{"pull", testImg}, s.args())
+	_, err := s.client.PrepareImage(context.Background(), testImg, true)
+	s.ErrorContains(err, "save final local image")
+	_, err = os.Stat(s.record)
+	s.ErrorIs(err, os.ErrNotExist)
 }
 
-func (s *clientSuite) TestImageRegistryFallback() {
+func (s *clientSuite) TestImageRegistryAuthentication() {
 	var requireAuth atomic.Bool
 	handler := registry.New(registry.Logger(log.New(io.Discard, "", 0)))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,25 +96,23 @@ func (s *clientSuite) TestImageRegistryFallback() {
 	s.Require().NoError(os.WriteFile(filepath.Join(dockerConfig, "config.json"), configJSON, 0o600))
 	s.T().Setenv("DOCKER_CONFIG", dockerConfig)
 	requireAuth.Store(true)
-	s.T().Setenv("DEVSY_MSB_TEST_MODE", modePullFail)
-	s.Require().NoError(s.client.EnsureImage(context.Background(), ref.Name()))
+	s.Require().NoError(s.importImage(context.Background(), ref.Name(), false))
 	loaded, err := tarball.ImageFromPath(s.record+".tar", nil)
 	s.Require().NoError(err)
 	config, err := loaded.ConfigFile()
 	s.Require().NoError(err)
 	s.Equal(testLinux, config.OS)
 	s.Equal(runtime.GOARCH, config.Architecture)
-	s.Equal([]string{"MARKER=host"}, config.Config.Env)
+	s.Equal([]string{hostMarker}, config.Config.Env)
 	args := s.args()
-	s.Equal([]string{"load", "-i"}, args[:2])
-	_, err = os.Stat(args[2])
-	s.ErrorIs(err, os.ErrNotExist)
+	s.Equal([]string{imageLoad, "-t"}, args[:2])
+	s.Contains(args[2], "devsy-msb-image:")
 }
 
 func (s *clientSuite) TestImageCanceledContext() {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	s.ErrorIs(s.client.EnsureImage(ctx, testImg), context.Canceled)
+	s.ErrorIs(s.importImage(ctx, testImg, true), context.Canceled)
 	_, err := os.Stat(s.record)
 	s.ErrorIs(err, os.ErrNotExist)
 }
@@ -113,7 +122,7 @@ func (s *clientSuite) TestImageDockerLoadFailure() {
 	s.T().Setenv("DEVSY_MSB_TEST_MODE", modeLoadFail)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	s.ErrorContains(s.client.EnsureImage(ctx, testImg), "load rejected")
+	s.ErrorContains(s.importImage(ctx, testImg, true), "load rejected")
 	s.NoError(ctx.Err())
 }
 
@@ -127,15 +136,31 @@ func (s *clientSuite) TestImageRegistryCancellation() {
 	defer server.Close()
 	s.T().Setenv("PATH", s.T().TempDir())
 	s.T().Setenv("DOCKER_CONFIG", s.T().TempDir())
-	s.T().Setenv("DEVSY_MSB_TEST_MODE", modePullFail)
 	s.ErrorIs(
-		s.client.EnsureImage(ctx, server.Listener.Addr().String()+"/image:latest"),
+		s.importImage(ctx, server.Listener.Addr().String()+"/image:latest", false),
 		context.Canceled,
 	)
-	s.Equal("pull", s.args()[0])
+	_, err := os.Stat(s.record)
+	s.ErrorIs(err, os.ErrNotExist)
+}
+
+func (s *clientSuite) importImage(ctx context.Context, ref string, built bool) error {
+	prepared, err := s.client.PrepareImage(ctx, ref, built)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = prepared.Close() }()
+	return s.client.EnsureImage(ctx, prepared)
 }
 
 func (s *clientSuite) installDockerHelper() {
+	archive := filepath.Join(s.T().TempDir(), "source.tar")
+	tag, err := name.NewTag(testImg)
+	s.Require().NoError(err)
+	img := s.hostImage()
+	s.Require().NoError(tarball.WriteToFile(archive, tag, img))
+	s.archive = archive
+	s.T().Setenv("DEVSY_MSB_TEST_IMAGE_ARCHIVE", archive)
 	binary, err := os.ReadFile(s.client.Binary)
 	s.Require().NoError(err)
 	dir := s.T().TempDir()
@@ -152,29 +177,16 @@ func imageHelper(args []string, mode string) int {
 	switch args[0] {
 	case "image":
 		return dockerInspectHelper(mode)
-	case "save":
+	case imageSave:
 		return saveHelper(mode)
-	case "pull":
-		if mode == modePullFail {
-			return 1
-		}
-	case "load":
-		return loadModeHelper(args, mode)
+	case imageLoad:
+		return loadModeHelper(mode)
 	}
 	return 0
 }
 
-func loadHelper(args []string) int {
-	var input io.Reader = os.Stdin
-	if len(args) > 2 && args[1] == "-i" {
-		// #nosec G703 -- path is a private tarball created by the client under test.
-		file, err := os.Open(args[2])
-		if err != nil {
-			return 1
-		}
-		defer func() { _ = file.Close() }()
-		input = file
-	}
+func loadHelper() int {
+	input := os.Stdin
 	data, err := io.ReadAll(input)
 	if err != nil {
 		return 1
@@ -187,44 +199,42 @@ func loadHelper(args []string) int {
 }
 
 func dockerInspectHelper(mode string) int {
-	if mode == modeDocker || mode == "save-fail" || mode == modeLoadFail {
+	if mode == modeDocker || mode == modeSaveFail || mode == modeLoadFail {
 		return 0
 	}
 	return 1
 }
 
-func loadModeHelper(args []string, mode string) int {
+func loadModeHelper(mode string) int {
+	if mode == testWait {
+		time.Sleep(time.Minute)
+		return 1
+	}
 	if mode == modeLoadFail {
 		_ = writeHelper(os.Stderr, "load rejected")
 		return 7
 	}
-	return loadHelper(args)
+	return loadHelper()
 }
 
 func saveHelper(mode string) int {
-	if mode == "save-fail" {
+	if mode == modeSaveFail {
 		return 7
 	}
-	var data io.Reader = bytes.NewBufferString(imageFixture)
-	if mode == modeLoadFail {
-		data = bytes.NewReader(bytes.Repeat([]byte("x"), 4*1024*1024))
+	// #nosec G703 -- private archive supplied by the parent test.
+	file, err := os.Open(os.Getenv("DEVSY_MSB_TEST_IMAGE_ARCHIVE"))
+	if err != nil {
+		return 1
 	}
-	if _, err := io.Copy(os.Stdout, data); err != nil {
+	defer func() { _ = file.Close() }()
+	if _, err := io.Copy(os.Stdout, file); err != nil {
 		return 1
 	}
 	return 0
 }
 
 func (s *clientSuite) registryIndex() v1.ImageIndex {
-	image, err := mutate.ConfigFile(
-		empty.Image,
-		&v1.ConfigFile{
-			OS:           testLinux,
-			Architecture: runtime.GOARCH,
-			Config:       v1.Config{Env: []string{"MARKER=host"}},
-		},
-	)
-	s.Require().NoError(err)
+	image := s.hostImage()
 	otherArch := "arm64"
 	if runtime.GOARCH == otherArch {
 		otherArch = "amd64"
@@ -249,4 +259,17 @@ func (s *clientSuite) registryIndex() v1.ImageIndex {
 			},
 		},
 	)
+}
+
+func (s *clientSuite) hostImage() v1.Image {
+	image, err := mutate.ConfigFile(
+		empty.Image,
+		&v1.ConfigFile{
+			OS:           testLinux,
+			Architecture: runtime.GOARCH,
+			Config:       v1.Config{Env: []string{hostMarker}},
+		},
+	)
+	s.Require().NoError(err)
+	return image
 }
