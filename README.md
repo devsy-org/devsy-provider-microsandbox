@@ -16,10 +16,12 @@ while the external runtime is implemented and tested for parity. This repository
 does not change existing provider configurations.
 
 Image snapshot preparation follows the current built-in driver; workspace owner
-resolution is available, and the server mapping remains to be implemented.
-The next stages implement the Runtime Protocol v1 adapter using the
+resolution is available. The Runtime v1 unary adapter now maps configuration,
+preflight, capability reporting, image creation, inspection, and lifecycle calls.
+Exec/Logs transport and the serving entry point remain to be implemented.
+The adapter uses the
 [Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
-and test an external provider alias before changing the built-in manifest.
+with external-provider alias testing planned before changing the built-in manifest.
 Image builds, tags, and publication remain Devsy image-backend responsibilities.
 The client prepares one immutable image snapshot before validation or import.
 Locally built images must be saved by the configured Docker-compatible CLI; they
@@ -45,8 +47,14 @@ needs an owner; named volumes, tmpfs, and `stat-virt=off` skip resolution. A
 non-root Dockerless identity still requires a prebuilt developer image or disabled
 stat virtualization with private host permissions, because it cannot be resolved
 from the runner image before VM creation. Resolved IDs control guest mount
-ownership and do not change host inode ownership. The server adapter will apply
-these IDs and validate mount configuration before import, stop, remove, or create.
+ownership and do not change host inode ownership. The unary adapter applies
+these IDs and validates mount configuration before import or creation. `RunImage`
+rejects an existing VM with `AlreadyExists`; deletion is an explicit lifecycle
+operation that stops a running VM before removing it. It never replaces a VM
+as a side effect of image creation. Invalid operator values and unsupported
+Docker-specific options return errors instead of being silently ignored.
+Additional bind mounts use runtime defaults; only the primary workspace
+mount receives the configured permission policy and resolved owner.
 
 Client tests use subprocess fixtures and a local OCI registry; they do not
 require an installed MicroSandbox runtime or Docker daemon. Real runtime parity
