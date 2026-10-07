@@ -35,8 +35,10 @@ part of this local-runtime client.
 
 Workspace ownership uses the developer identity (`remoteUser`, then workload
 `user`, then root) without changing the workload execution user. The resolver
-reads the prepared image's flattened `/etc/passwd` and `/etc/group`, including
-layer replacements and whiteouts, without running image code. Explicit numeric
+reads `/etc/passwd` and `/etc/group` from the prepared image, respecting layer
+replacements, whiteouts, and opaque directories without running image code.
+Account-file and account-directory links are rejected rather than exposing stale
+metadata from lower layers. Explicit numeric
 UID:GID and root identities need no account lookup. Missing or invalid accounts
 fail validation before runtime mutation. Only the primary workspace bind mount
 needs an owner; named volumes, tmpfs, and `stat-virt=off` skip resolution. A

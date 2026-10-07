@@ -19,7 +19,10 @@ import (
 )
 
 const (
-	numericIdentity = "1000:1001"
+	numericIdentity   = "1000:1001"
+	numericNamedGroup = "1000:developers"
+	accountLinkTarget = "other"
+	developerGroup    = "developers:x:1001:\n"
 	//nolint:gosec // Synthetic account fixture contains no credentials.
 	snapshotPasswd = "vscode:x:2000:2001:dev:/home/vscode:/bin/sh\n"
 )
@@ -45,7 +48,7 @@ func (s *imageUserSuite) TestResolution() {
 		{numericIdentity, MountOwner{1000, 1001}},
 		{"vscode:developers", MountOwner{1000, 1001}},
 		{"vscode:1003", MountOwner{1000, 1003}},
-		{"1000:developers", MountOwner{1000, 1001}},
+		{numericNamedGroup, MountOwner{1000, 1001}},
 	} {
 		s.Run(tt.user, func() {
 			owner, err := ownerFromImage(context.Background(), img, tt.user)
@@ -222,7 +225,7 @@ func (s *imageUserSuite) TestWorkspaceCancellationIncludesExplicitOwners() {
 func (s *imageUserSuite) TestNonRegularAccountFile() {
 	for _, kind := range []byte{tar.TypeSymlink, tar.TypeLink, tar.TypeDir} {
 		_, err := readAccountFile(strings.NewReader(snapshotPasswd), &tar.Header{
-			Name: passwdPath, Typeflag: kind, Linkname: "other",
+			Name: passwdPath, Typeflag: kind, Linkname: accountLinkTarget,
 		})
 		s.ErrorContains(err, "not a regular account file")
 	}
@@ -230,7 +233,7 @@ func (s *imageUserSuite) TestNonRegularAccountFile() {
 
 func (s *imageUserSuite) TestMalformedGroup() {
 	for _, groups := range []string{"developers:x:no:\n", "developers:x:4294967296:\n"} {
-		_, err := ownerFromAccounts("1000:developers", "", groups)
+		_, err := ownerFromAccounts(numericNamedGroup, "", groups)
 		s.ErrorContains(err, "invalid group ID")
 	}
 }
@@ -272,7 +275,7 @@ func (s *imageUserSuite) TestOwnerAndImportShareLocalSnapshot() {
 func (s *imageUserSuite) TestRootWithGroupUsesImageAccount() {
 	prepared := s.preparedImage(s.layer(map[string]string{
 		passwdPath: "root:x:42:43:root:/root:/bin/sh\n",
-		groupPath:  "developers:x:1001:\n",
+		groupPath:  developerGroup,
 	}))
 	options := workspaceOwnerOptions()
 	for _, user := range []string{"root:developers", "root:1001"} {
@@ -287,9 +290,9 @@ func (s *imageUserSuite) TestRootWithGroupUsesImageAccount() {
 }
 
 func (s *imageUserSuite) TestNumericUserWithNamedGroupNeedsNoPasswd() {
-	prepared := s.preparedImage(s.layer(map[string]string{groupPath: "developers:x:1001:\n"}))
+	prepared := s.preparedImage(s.layer(map[string]string{groupPath: developerGroup}))
 	options := workspaceOwnerOptions()
-	options.RemoteUser = "1000:developers"
+	options.RemoteUser = numericNamedGroup
 	owner, err := ResolveWorkspaceOwner(context.Background(), prepared, options)
 	s.Require().NoError(err)
 	s.Equal(MountOwner{1000, 1001}, *owner)
@@ -302,6 +305,87 @@ func (s *imageUserSuite) TestCancellationDuringLayerRetrieval() {
 	prepared.image = cancelingImage{Image: prepared.image, cancel: cancel}
 	_, err := ResolveWorkspaceOwner(ctx, prepared, workspaceOwnerOptions())
 	s.ErrorIs(err, context.Canceled)
+}
+
+func (s *imageUserSuite) TestUnsafeAccountLinkDoesNotExposeLowerLayer() {
+	layer := s.headerLayer(&tar.Header{
+		Name: passwdPath, Typeflag: tar.TypeSymlink, Linkname: "../../outside",
+	})
+	prepared := s.preparedImage(s.layer(map[string]string{passwdPath: snapshotPasswd}), layer)
+	_, err := ResolveWorkspaceOwner(context.Background(), prepared, workspaceOwnerOptions())
+	s.ErrorContains(err, "not a regular account file")
+}
+
+func (s *imageUserSuite) TestOpaqueAccountDirectory() {
+	for _, marker := range []string{".wh.etc", ".wh..wh..opq", "etc/.wh..wh..opq"} {
+		s.Run(marker, func() {
+			base := s.layer(map[string]string{passwdPath: snapshotPasswd, groupPath: "old:x:99:\n"})
+			prepared := s.preparedImage(base, s.layer(map[string]string{marker: ""}))
+			_, err := ResolveWorkspaceOwner(context.Background(), prepared, workspaceOwnerOptions())
+			s.ErrorContains(err, "not found")
+			prepared = s.preparedImage(
+				base,
+				s.layer(map[string]string{marker: "", passwdPath: snapshotPasswd}),
+			)
+			owner, err := ResolveWorkspaceOwner(
+				context.Background(),
+				prepared,
+				workspaceOwnerOptions(),
+			)
+			s.Require().NoError(err)
+			s.Equal(MountOwner{2000, 2001}, *owner)
+			options := workspaceOwnerOptions()
+			options.RemoteUser = "vscode:old"
+			_, err = ResolveWorkspaceOwner(context.Background(), prepared, options)
+			s.ErrorContains(err, "not found")
+		})
+	}
+}
+
+func (s *imageUserSuite) TestLowerAccountLinkHiddenByRegularReplacement() {
+	layer := s.headerLayer(&tar.Header{
+		Name: passwdPath, Typeflag: tar.TypeSymlink, Linkname: "../../outside",
+	})
+	prepared := s.preparedImage(layer, s.layer(map[string]string{passwdPath: snapshotPasswd}))
+	owner, err := ResolveWorkspaceOwner(context.Background(), prepared, workspaceOwnerOptions())
+	s.Require().NoError(err)
+	s.Equal(MountOwner{2000, 2001}, *owner)
+}
+
+func (s *imageUserSuite) TestAccountDirectoryLinkRejected() {
+	layer := s.headerLayer(&tar.Header{
+		Name: "etc", Typeflag: tar.TypeSymlink, Linkname: accountLinkTarget,
+	})
+	prepared := s.preparedImage(s.layer(map[string]string{passwdPath: snapshotPasswd}), layer)
+	_, err := ResolveWorkspaceOwner(context.Background(), prepared, workspaceOwnerOptions())
+	s.ErrorContains(err, "not a regular account directory")
+}
+
+func (s *imageUserSuite) TestUnrelatedAccountFileDoesNotBlockResolution() {
+	for _, user := range []string{testUser, numericNamedGroup} {
+		s.Run(user, func() {
+			unrelated := groupPath
+			expected := MountOwner{2000, 2001}
+			if user != testUser {
+				unrelated = passwdPath
+				expected = MountOwner{1000, 1001}
+			}
+			base := s.layer(
+				map[string]string{passwdPath: snapshotPasswd, groupPath: developerGroup},
+			)
+			for _, bad := range []v1.Layer{
+				s.headerLayer(&tar.Header{Name: unrelated, Typeflag: tar.TypeSymlink, Linkname: accountLinkTarget}),
+				s.layer(map[string]string{unrelated: strings.Repeat("x", maxAccountFileSize+1)}),
+			} {
+				prepared := s.preparedImage(base, bad)
+				options := workspaceOwnerOptions()
+				options.RemoteUser = user
+				owner, err := ResolveWorkspaceOwner(context.Background(), prepared, options)
+				s.Require().NoError(err)
+				s.Equal(expected, *owner)
+			}
+		})
+	}
 }
 
 func (s *imageUserSuite) preparedImage(layers ...v1.Layer) *PreparedImage {
@@ -344,4 +428,16 @@ type cancelingImage struct {
 func (img cancelingImage) Layers() ([]v1.Layer, error) {
 	img.cancel()
 	return img.Image.Layers()
+}
+
+func (s *imageUserSuite) headerLayer(header *tar.Header) v1.Layer {
+	var buf bytes.Buffer
+	writer := tar.NewWriter(&buf)
+	s.Require().NoError(writer.WriteHeader(header))
+	s.Require().NoError(writer.Close())
+	layer, err := tarball.LayerFromOpener(func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
+	})
+	s.Require().NoError(err)
+	return layer
 }
