@@ -14,6 +14,7 @@ type inspectedConfig struct {
 
 type inspectedMount struct {
 	Type  string `json:"type"`
+	Name  string `json:"name"`
 	Host  string `json:"host"`
 	Guest string `json:"guest"`
 }
@@ -54,6 +55,8 @@ func inspectedMounts(raw []inspectedMount) []Mount {
 			mounts = append(mounts, Mount{Source: mount.Host, Target: mount.Guest})
 		case "Tmpfs":
 			mounts = append(mounts, Mount{Target: mount.Guest, Tmpfs: true})
+		case "Named":
+			mounts = append(mounts, Mount{Volume: mount.Name, Target: mount.Guest})
 		}
 	}
 	return mounts
