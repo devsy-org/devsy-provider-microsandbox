@@ -1,0 +1,241 @@
+package msb
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+)
+
+const (
+	testUser      = "vscode"
+	testCachePath = "/cache"
+	testDenied    = "denied"
+	testExec      = "exec"
+	wsName        = "devsy-ws1"
+	testImg       = "img:1"
+	testVersion   = "0.7.2"
+	shPath        = "/bin/sh"
+	testBindSrc   = "/host/proj"
+	testBindDst   = "/workspaces/proj"
+)
+
+func runPrefix() []string {
+	return []string{msbCmdRun, msbFlagDetach, "--name", wsName}
+}
+
+func TestRunArgsFull(t *testing.T) {
+	spec := Spec{
+		Image:       testImg,
+		Entrypoint:  shPath,
+		Cmd:         []string{"-c", "sleep infinity", "-"},
+		Env:         map[string]string{"K": "v"},
+		Labels:      map[string]string{"devsy.sh/user": testUser},
+		IdleTimeout: 90 * time.Second,
+		BlockEgress: true,
+		Memory:      2048,
+		MaxMemory:   4096,
+		CPUs:        2,
+		MaxCPUs:     4,
+		Mounts: []Mount{
+			{Target: testCachePath, Volume: "cache-vol"},
+			{Target: "/tmp", Tmpfs: true},
+		},
+	}
+	args := runArgs(wsName, spec)
+
+	if !slices.Equal(args[:4], runPrefix()) {
+		t.Errorf("prefix = %v, want %v", args[:4], runPrefix())
+	}
+
+	imgIdx := slices.Index(args, testImg)
+	if imgIdx < 0 {
+		t.Fatalf("image not found in %v", args)
+	}
+	wantSuffix := append([]string{testImg, "--"}, spec.Cmd...)
+	if !slices.Equal(args[imgIdx:], wantSuffix) {
+		t.Errorf("image+cmd suffix = %v, want %v", args[imgIdx:], wantSuffix)
+	}
+
+	wantFlags := [][2]string{
+		{"--entrypoint", shPath},
+		{envFlag, "K=v"},
+		{"--label", "devsy.sh/user=vscode"},
+		{"--idle-timeout", "1m30s"},
+		{"--memory", "2048M"},
+		{"--max-memory", "4096M"},
+		{"--cpus", "2"},
+		{"--max-cpus", "4"},
+		{"--mount-named", "cache-vol:/cache"},
+		{"--tmpfs", "/tmp"},
+	}
+	for _, kv := range wantFlags {
+		if !hasFlagValue(args, kv[0], kv[1]) {
+			t.Errorf("missing %s %q in %v", kv[0], kv[1], args)
+		}
+	}
+	if !hasFlag(args, "--net-default-egress") {
+		t.Errorf("expected egress deny flag in %v", args)
+	}
+}
+
+func TestRunArgsMinimal(t *testing.T) {
+	args := runArgs(wsName, Spec{Image: testImg})
+	want := append(runPrefix(), testImg)
+	if !slices.Equal(args, want) {
+		t.Errorf("args = %v, want %v", args, want)
+	}
+}
+
+func TestRunArgsPropagatesUser(t *testing.T) {
+	args := runArgs(wsName, Spec{Image: testImg, User: testUser})
+	if !hasFlagValue(args, "--user", testUser) {
+		t.Fatalf("args = %v, want --user vscode", args)
+	}
+}
+
+func TestRunArgsCmdWithoutEntrypoint(t *testing.T) {
+	args := runArgs(wsName, Spec{Image: testImg, Cmd: []string{"python3", "worker.py"}})
+	if hasFlag(args, "--entrypoint") {
+		t.Errorf("did not expect --entrypoint in %v", args)
+	}
+	want := append(runPrefix(), testImg, "--", "python3", "worker.py")
+	if !slices.Equal(args, want) {
+		t.Errorf("args = %v, want %v", args, want)
+	}
+}
+
+func TestRunArgsEntrypointWithoutCmd(t *testing.T) {
+	args := runArgs(wsName, Spec{Image: testImg, Entrypoint: shPath})
+	want := append(runPrefix(), "--entrypoint", shPath, testImg)
+	if !slices.Equal(args, want) {
+		t.Errorf("args = %v, want %v", args, want)
+	}
+}
+
+func TestMountArgsAndNamedVolumes(t *testing.T) {
+	mounts := []Mount{
+		{Target: "/a", Volume: "vol-a"},
+		{Target: "/b", Tmpfs: true},
+		{Target: "/c", Volume: "vol-c"},
+		{Target: testBindDst, Source: testBindSrc},
+		{Target: "/ro", Source: "/host/ro", ReadOnly: true},
+	}
+	if got := namedVolumes(mounts); !slices.Equal(got, []string{"vol-a", "vol-c"}) {
+		t.Errorf("namedVolumes = %v, want [vol-a vol-c]", got)
+	}
+	args := mountArgs(mounts)
+	if !hasFlagValue(args, "--mount-named", "vol-a:/a") ||
+		!hasFlagValue(args, "--tmpfs", "/b") ||
+		!hasFlagValue(args, "--mount-named", "vol-c:/c") ||
+		!hasFlagValue(args, "--mount-dir", testBindSrc+":"+testBindDst) ||
+		!hasFlagValue(args, "--mount-dir", "/host/ro:/ro:ro") {
+		t.Errorf("mountArgs = %v", args)
+	}
+}
+
+func TestMountArgsWorkspacePolicyAndOwner(t *testing.T) {
+	args := mountArgs([]Mount{
+		{Target: testBindDst, Source: testBindSrc, Policy: MountPolicy{
+			StatVirtualization: StatStrict,
+			HostPermissions:    HostMirror,
+			Owner:              &MountOwner{UID: 1000, GID: 1001},
+		}},
+	})
+	want := testBindSrc + ":" + testBindDst + ":stat-virt=strict,host-perms=mirror,uid=1000,gid=1001"
+	if !hasFlagValue(args, "--mount-dir", want) {
+		t.Fatalf("mountArgs = %v, want %q", args, want)
+	}
+}
+
+func TestParseMicrosandboxVersion(t *testing.T) {
+	for _, input := range []string{"microsandbox " + testVersion, "msb " + testVersion, "v" + testVersion, testVersion} {
+		version, err := ParseVersion(input)
+		if err != nil || version.String() != testVersion {
+			t.Errorf("ParseVersion(%q) = %v, %v", input, version, err)
+		}
+	}
+	if _, err := ParseVersion("not a version"); err == nil {
+		t.Error("malformed version should fail")
+	}
+}
+
+func TestResourceArgsOmitsZero(t *testing.T) {
+	if got := resourceArgs(Spec{}); len(got) != 0 {
+		t.Errorf("zero spec should produce no resource args, got %v", got)
+	}
+	if got := resourceArgs(
+		Spec{Memory: 512},
+	); !slices.Equal(
+		got,
+		[]string{"--memory", "512M"},
+	) {
+		t.Errorf("resourceArgs = %v", got)
+	}
+}
+
+func TestResourceArgsRootDisk(t *testing.T) {
+	if got := resourceArgs(Spec{RootDiskGB: 32}); !slices.Equal(
+		got,
+		[]string{flagRootDisk, "32G"},
+	) {
+		t.Errorf("resourceArgs = %v", got)
+	}
+	if got := resourceArgs(Spec{}); slices.Contains(got, flagRootDisk) {
+		t.Errorf("zero RootDiskGB should omit --root-disk, got %v", got)
+	}
+}
+
+func TestResourceArgsEphemeralUsesTmpfsRootDisk(t *testing.T) {
+	if got := resourceArgs(Spec{Ephemeral: true, RootDiskGB: 32}); !slices.Equal(
+		got,
+		[]string{flagRootDisk, "tmpfs:32G"},
+	) {
+		t.Errorf("resourceArgs = %v", got)
+	}
+}
+
+func TestResourceArgsEphemeralWithoutSizeUsesDefault(t *testing.T) {
+	if got := resourceArgs(Spec{Ephemeral: true}); !slices.Equal(
+		got,
+		[]string{flagRootDisk, fmt.Sprintf("tmpfs:%dG", defaultEphemeralRootDiskGB)},
+	) {
+		t.Errorf("resourceArgs = %v", got)
+	}
+}
+
+func TestRedactArgsMasksEnvValues(t *testing.T) {
+	args := []string{
+		"create",
+		envFlag,
+		"TOKEN=s3cret",
+		"--label",
+		"k=v",
+		envFlag,
+		"PLAIN=ok",
+	}
+	got := redactArgs(args)
+	if strings.Contains(got, "s3cret") || strings.Contains(got, "ok") {
+		t.Errorf("env values leaked: %q", got)
+	}
+	if !strings.Contains(got, "TOKEN=***") || !strings.Contains(got, "PLAIN=***") {
+		t.Errorf("env keys should be preserved with masked values: %q", got)
+	}
+	if !strings.Contains(got, "--label k=v") {
+		t.Errorf("non-env args should be untouched: %q", got)
+	}
+}
+
+func hasFlag(args []string, flag string) bool {
+	return slices.Contains(args, flag)
+}
+
+func hasFlagValue(args []string, flag, value string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == flag && args[i+1] == value {
+			return true
+		}
+	}
+	return false
+}
