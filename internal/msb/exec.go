@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 )
 
@@ -31,7 +30,7 @@ func runExec(cmd *exec.Cmd, input io.ReadCloser) error {
 	finished := make(chan struct{})
 	pending = finished
 	go func() {
-		_, err := io.Copy(writer, input)
+		_, err := io.Copy(execStdinWriter{Writer: writer}, input)
 		// Publish input failures before EOF can make the child exit successfully.
 		copied <- err
 		_ = writer.Close()
@@ -51,8 +50,7 @@ func runExec(cmd *exec.Cmd, input io.ReadCloser) error {
 }
 
 func execInputError(err error) error {
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) && pathErr.Op == "write" {
+	if _, ok := errors.AsType[*execStdinWriteError](err); ok {
 		// A successful command may stop reading before stdin reaches EOF.
 		return nil
 	}
@@ -61,3 +59,18 @@ func execInputError(err error) error {
 	}
 	return nil
 }
+
+type execStdinWriter struct{ io.Writer }
+
+func (w execStdinWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
+	if err != nil {
+		return n, &execStdinWriteError{err: err}
+	}
+	return n, nil
+}
+
+type execStdinWriteError struct{ err error }
+
+func (e *execStdinWriteError) Error() string { return e.err.Error() }
+func (e *execStdinWriteError) Unwrap() error { return e.err }

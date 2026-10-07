@@ -208,12 +208,18 @@ func (s *clientSuite) TestExecClosesBlockedInputOnExit() {
 }
 
 func (s *clientSuite) TestExecPreservesInputFailure() {
-	inputErr := errors.New("fixture input failure")
-	err := s.client.Exec(context.Background(), wsName, ExecRequest{
-		Argv:  []string{"cat"},
-		Stdin: io.NopCloser(failedReader{err: inputErr}), Stderr: io.Discard,
-	})
-	s.ErrorIs(err, inputErr)
+	for _, inputErr := range []error{
+		errors.New("fixture input failure"),
+		&os.PathError{Op: "write", Path: "input-source", Err: errors.New("input transport failure")},
+	} {
+		s.Run(inputErr.Error(), func() {
+			err := s.client.Exec(context.Background(), wsName, ExecRequest{
+				Argv:  []string{"cat"},
+				Stdin: io.NopCloser(failedReader{err: inputErr}), Stderr: io.Discard,
+			})
+			s.ErrorIs(err, inputErr)
+		})
+	}
 }
 
 func (s *clientSuite) TestInstallationRejectsUnusablePaths() {
