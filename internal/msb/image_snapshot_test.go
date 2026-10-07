@@ -76,13 +76,19 @@ func (s *clientSuite) TestRegistrySnapshotSurvivesTagChange() {
 	s.Require().NoError(remote.Write(ref, image))
 	s.T().Setenv("PATH", s.T().TempDir())
 	s.T().Setenv("DOCKER_CONFIG", s.T().TempDir())
-	prepared, err := s.client.PrepareImage(context.Background(), ref.Name(), false)
+	prepareCtx, cancelPrepare := context.WithCancel(context.Background())
+	defer cancelPrepare()
+	prepared, err := s.client.PrepareImage(prepareCtx, ref.Name(), false)
 	s.Require().NoError(err)
 	defer func() { _ = prepared.Close() }()
 	digest, err := image.Digest()
 	s.Require().NoError(err)
 	s.Require().NoError(remote.Write(ref, empty.Image))
-	s.Require().NoError(s.client.EnsureImage(context.Background(), prepared))
+	cancelPrepare()
+	server.Close()
+	importCtx, cancelImport := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelImport()
+	s.Require().NoError(s.client.EnsureImage(importCtx, prepared))
 	s.Equal([]string{imageLoad, "-t", "devsy-msb-image:" + digest.Hex}, s.args())
 	s.assertImportedDigest(digest)
 }
@@ -161,7 +167,7 @@ func (s *clientSuite) TestSnapshotClosePreservesRemovalError() {
 	s.Error(prepared.Close())
 }
 
-func (s *clientSuite) TestImportCancellationDuringLayerDownload() {
+func (s *clientSuite) TestPreparationCancellationDuringLayerDownload() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var armed atomic.Bool
@@ -180,9 +186,39 @@ func (s *clientSuite) TestImportCancellationDuringLayerDownload() {
 	s.Require().NoError(remote.Write(ref, s.layeredImage()))
 	s.T().Setenv("PATH", s.T().TempDir())
 	s.T().Setenv("DOCKER_CONFIG", s.T().TempDir())
+	temporary := s.T().TempDir()
+	for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+		s.T().Setenv(key, temporary)
+	}
+	armed.Store(true)
 	prepared, err := s.client.PrepareImage(ctx, ref.Name(), false)
+	s.ErrorIs(err, context.Canceled)
+	s.Nil(prepared)
+	files, readErr := os.ReadDir(temporary)
+	s.Require().NoError(readErr)
+	s.Empty(files)
+}
+
+func (s *clientSuite) TestImportCancellationWithSeparateContext() {
+	s.installDockerHelper()
+	prepared, err := s.client.PrepareImage(context.Background(), testImg, true)
 	s.Require().NoError(err)
 	defer func() { _ = prepared.Close() }()
-	armed.Store(true)
-	s.ErrorIs(s.client.EnsureImage(ctx, prepared), context.Canceled)
+	s.Require().NoError(os.Remove(s.record))
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", testWait)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() { result <- s.client.EnsureImage(ctx, prepared) }()
+	s.Require().Eventually(func() bool {
+		_, err := os.Stat(s.record)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	cancel()
+	select {
+	case err := <-result:
+		s.ErrorIs(err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		s.Fail("canceled import did not return")
+	}
 }

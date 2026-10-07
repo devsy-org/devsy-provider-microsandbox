@@ -206,6 +206,10 @@ func dockerInspectHelper(mode string) int {
 }
 
 func loadModeHelper(mode string) int {
+	if mode == testWait {
+		time.Sleep(time.Minute)
+		return 1
+	}
 	if mode == modeLoadFail {
 		_ = writeHelper(os.Stderr, "load rejected")
 		return 7

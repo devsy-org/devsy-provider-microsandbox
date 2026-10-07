@@ -27,8 +27,9 @@ never fall back to a registry. Other images use a cached Docker image when
 available, otherwise a Linux image for the host architecture from an OCI registry.
 The same snapshot is imported under a content-derived tag after validation, so a
 moving source tag cannot change the image used to create the VM. Callers keep the
-snapshot open until validation and import finish, then close it to remove any
-local archive. Registry access uses the host's Docker configuration and
+snapshot open until validation and import finish, then close it to remove its
+private archive. Preparation captures registry layers before returning, so import
+and inspection can use a different context and no longer need registry access. Registry access uses the host's Docker configuration and
 credential helpers. Kubernetes service-account registry authentication is not
 part of this local-runtime client.
 

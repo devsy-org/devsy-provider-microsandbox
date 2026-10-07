@@ -184,5 +184,29 @@ func registryImage(ctx context.Context, imageRef string) (*PreparedImage, error)
 	if err != nil {
 		return nil, fmt.Errorf("pull final image %q: %w", imageRef, sanitizeRegistryError(err))
 	}
-	return &PreparedImage{image: img}, nil
+	return captureRegistryImage(ctx, ref, img)
+}
+
+func captureRegistryImage(
+	ctx context.Context,
+	ref name.Reference,
+	img v1.Image,
+) (*PreparedImage, error) {
+	archive, err := os.CreateTemp("", "devsy-msb-image-*.tar")
+	if err != nil {
+		return nil, err
+	}
+	prepared := &PreparedImage{archive: archive.Name()}
+	writeErr := tarball.Write(ref, img, archive)
+	closeErr := archive.Close()
+	if err := errors.Join(writeErr, closeErr, ctx.Err()); err != nil {
+		_ = prepared.Close()
+		return nil, fmt.Errorf("capture final registry image: %w", sanitizeRegistryError(err))
+	}
+	prepared.image, err = tarball.ImageFromPath(prepared.archive, nil)
+	if err != nil {
+		_ = prepared.Close()
+		return nil, fmt.Errorf("read final registry image: %w", err)
+	}
+	return prepared, nil
 }
