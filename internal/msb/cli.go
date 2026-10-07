@@ -3,7 +3,6 @@ package msb
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // Client invokes the MicroSandbox CLI. A zero value discovers msb on PATH or
@@ -71,25 +69,7 @@ func (c Client) Find(ctx context.Context, sandbox string) (*Info, error) {
 		}
 		return nil, fmt.Errorf("inspect microsandbox VM %q: %w", sandbox, err)
 	}
-	type activeConfig struct {
-		Labels map[string]string `json:"labels"`
-	}
-	var raw struct {
-		Name         string       `json:"name"`
-		Status       string       `json:"status"`
-		CreatedAt    string       `json:"created_at"`
-		ActiveConfig activeConfig `json:"active_config"`
-	}
-	if err := json.Unmarshal(out, &raw); err != nil {
-		return nil, fmt.Errorf("parse microsandbox inspect output: %w", err)
-	}
-	created, _ := time.Parse(time.RFC3339Nano, raw.CreatedAt)
-	return &Info{
-		Name:      raw.Name,
-		Running:   strings.EqualFold(raw.Status, "running"),
-		CreatedAt: created,
-		Labels:    raw.ActiveConfig.Labels,
-	}, nil
+	return parseInfo(out)
 }
 
 // Start resumes an existing VM.

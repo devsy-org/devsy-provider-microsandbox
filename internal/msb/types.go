@@ -40,6 +40,7 @@ type Info struct {
 	Running   bool
 	CreatedAt time.Time
 	Labels    map[string]string
+	Mounts    []Mount
 }
 
 // ExecRequest carries a non-PTY command and its byte streams.
