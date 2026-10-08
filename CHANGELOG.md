@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.3...v0.1.4) (2026-10-08)
+
+
+### Features
+
+* **runtime:** validate MicroSandbox workspace reuse ([dedd759](https://github.com/devsy-org/devsy-provider-microsandbox/commit/dedd75962c37c8e6af056a86f8fd2959ee40f8d3))
+
 ## [0.1.3](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.2...v0.1.3) (2026-10-08)
 
 
