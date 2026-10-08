@@ -103,7 +103,7 @@ jobs:
           VERSION: ${{ inputs.version }}
           DEVSY_HOME: ${{ runner.temp }}/devsy-distribution
         run: |
-          go run -tags devsy_distribution_smoke ../provider/integration/provider_install.go "$GITHUB_WORKSPACE/dist" "$VERSION"
+          go run ../provider/integration/provider_install.go "$GITHUB_WORKSPACE/dist" "$VERSION"
           go build -o "$RUNNER_TEMP/devsy" .
           "$RUNNER_TEMP/devsy" provider add --use=false microsandbox
           "$RUNNER_TEMP/devsy" provider add --use=false --name microsandbox-external "$GITHUB_WORKSPACE/dist/provider.yaml"

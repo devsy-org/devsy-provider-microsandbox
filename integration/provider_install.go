@@ -1,7 +1,8 @@
-//go:build devsy_distribution_smoke
+//go:build ignore
 
 // Command provider_install verifies release downloads using Devsy's real resolver.
-// Run from the pinned Devsy source checkout, which supplies the host packages.
+// Run explicitly from the pinned Devsy checkout, which supplies the host packages.
+// The ignore tag keeps host-only imports out of this provider module.
 package main
 
 import (
