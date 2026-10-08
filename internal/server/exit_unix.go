@@ -3,6 +3,7 @@
 package server
 
 import (
+	"fmt"
 	"os/exec"
 	"syscall"
 
@@ -11,7 +12,7 @@ import (
 
 func processExit(failed *exec.ExitError) (*runtimev1.ExecExit, error) {
 	if state, ok := failed.Sys().(syscall.WaitStatus); ok && state.Signaled() {
-		return &runtimev1.ExecExit{Signal: state.Signal().String()}, nil
+		return nil, fmt.Errorf("msb CLI terminated by signal %q", state.Signal().String())
 	}
 	return exitCode(failed.ExitCode())
 }

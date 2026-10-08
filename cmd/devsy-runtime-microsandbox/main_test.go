@@ -17,6 +17,8 @@ import (
 	"github.com/devsy-org/devsy-runtime-sdk/runtimev1"
 	hplugin "github.com/hashicorp/go-plugin"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const fixtureEnv = "DEVSY_MSB_ENTRYPOINT_FIXTURE"
@@ -106,16 +108,17 @@ func (s *entrypointSuite) TestRealPluginNonzeroExit() {
 	s.Empty(exit.GetSignal())
 }
 
-func (s *entrypointSuite) TestRealPluginSignalExit() {
+func (s *entrypointSuite) TestRealPluginCLISignalFailure() {
 	if runtime.GOOS == "windows" {
-		s.T().Skip("Unix signal exit")
+		s.T().Skip("Unix CLI signal termination")
 	}
 	client := s.pluginClient()
 	stream, err := client.Exec(s.ctx())
 	s.Require().NoError(err)
 	s.Require().NoError(stream.Send(execStart("signal")))
-	_, _, exit := s.readOutput(stream)
-	s.NotEmpty(exit.GetSignal())
+	_, err = stream.Recv()
+	s.Equal(codes.Internal, status.Code(err))
+	s.ErrorContains(err, "msb CLI terminated by signal")
 }
 
 func (s *entrypointSuite) pluginClient() runtimev1.RuntimeDriverClient {

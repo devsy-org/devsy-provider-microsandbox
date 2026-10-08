@@ -64,12 +64,17 @@ a subprocess CLI fixture. They do not certify MicroSandbox runtime parity, which
 will accompany the external provider alias.
 
 Exec preserves literal argv and the requested user, emits separate bounded
-stdout/stderr frames, and reports ordinary command failures in a terminal exit
-frame. Backend/transport failures remain RPC errors. TTY, workdir, and environment
-overrides are rejected explicitly. CloseStdin closes command input without
+stdout/stderr frames, and reports the CLI process exit status in a terminal exit
+frame. CLI launch, I/O, cancellation, and signal failures remain RPC errors.
+TTY, workdir, and environment overrides are rejected explicitly. CloseStdin closes command input without
 canceling the command; RPC cancellation stops and reaps the CLI process. Commands
 may finish before stdin closes. Logs merges backend streams into bounded frames
 and returns after the current log output, without following.
+
+The current MicroSandbox CLI does not expose a separate guest completion channel.
+A nonzero CLI exit can therefore mean either a guest result or a backend error.
+This ambiguity must be resolved before runtime parity and provider release; the
+streaming adapter does not infer error categories from stderr text.
 
 ## Development
 
