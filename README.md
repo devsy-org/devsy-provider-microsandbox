@@ -9,8 +9,8 @@ client in `internal/msb`. The client covers lifecycle commands, non-PTY byte
 streams, mount encoding, version parsing, and image loading.
 The executable supports `--version` and `serve` through the Runtime SDK plugin
 handshake. It implements lifecycle RPCs, binary non-PTY Exec, and finite merged
-Logs. Releases following this change will include native executables, SHA-256
-checksums, and an installable `provider.yaml`.
+Logs. Starting with v0.1.3, releases include native executables, SHA-256 checksums,
+and an installable `provider.yaml`.
 
 Use Devsy's built-in `microsandbox` provider for workspaces. It remains supported
 while the external runtime is implemented and tested for parity. This repository
@@ -56,6 +56,14 @@ as a side effect of image creation. Invalid operator values and unsupported
 Docker-specific options return errors instead of being silently ignored.
 Additional bind mounts use runtime defaults; only the primary workspace
 mount receives the configured permission policy and resolved owner.
+
+API 1.2 `ReusePreflight` checks the saved mount policy and developer identity
+before reusing an existing VM. A changed ownership contract returns structured
+`FailedPrecondition` with `--recreate` guidance, leaving the VM and its root disk
+intact. With stat virtualization disabled, developer identity changes are allowed
+when the mount policy still matches. The check only inspects state; it never
+starts, stops, or removes a VM. Use a Devsy build with `ReusePreflight` host support
+to enforce this check; earlier hosts do not invoke the optional capability.
 
 Client tests use subprocess fixtures and a local OCI registry; they do not
 require an installed MicroSandbox runtime or Docker daemon. Executable tests
@@ -119,8 +127,7 @@ Windows arm64 and macOS amd64 are not distributed by this workflow.
 
 Use a Devsy build containing external runtime support (commit
 `017e389afcd23132ce45277c387a57440a880e7f` or later), an installed MicroSandbox
-CLI 0.7.7 or newer for Exec, and Docker for image builds. Once a release containing
-`provider.yaml` is available:
+CLI 0.7.7 or newer for Exec, provider v0.1.3 or newer, and Docker for image builds:
 
 ```sh
 devsy provider add --use=false --name microsandbox-external \

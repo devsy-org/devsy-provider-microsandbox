@@ -89,6 +89,7 @@ func (s *runtimeSuite) TestInfo() {
 	s.NoError(runtimev1.ValidateInfo(info))
 	s.True(info.GetCapabilities().GetLogs())
 	s.True(info.GetCapabilities().GetRequiresWorkspaceChown())
+	s.True(info.GetCapabilities().GetReusePreflight())
 }
 
 func (s *runtimeSuite) TestRunImageOwnerAndSnapshot() {
