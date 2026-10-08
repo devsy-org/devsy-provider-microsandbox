@@ -7,18 +7,19 @@ External MicroSandbox runtime provider for [Devsy](https://github.com/devsy-org/
 This repository contains the project tooling and the extracted MicroSandbox CLI
 client in `internal/msb`. The client covers lifecycle commands, non-PTY byte
 streams, mount encoding, version parsing, and image loading.
-The executable supports `--version` and deliberately fails other invocations;
-it does not yet serve Runtime Protocol v1 or create workspaces. There is no
-installable external provider manifest or runtime release asset yet.
+The executable supports `--version` and `serve` through the Runtime SDK plugin
+handshake. It implements lifecycle RPCs, binary non-PTY Exec, and finite merged
+Logs. There is no installable external provider manifest or runtime release asset
+yet.
 
 Use Devsy's built-in `microsandbox` provider for workspaces. It remains supported
 while the external runtime is implemented and tested for parity. This repository
 does not change existing provider configurations.
 
 Image snapshot preparation follows the current built-in driver; workspace owner
-resolution is available. The Runtime v1 unary adapter now maps configuration,
+resolution is available. The Runtime v1 adapter maps configuration,
 preflight, capability reporting, image creation, inspection, and lifecycle calls.
-Exec/Logs transport and the serving entry point remain to be implemented.
+Binary Exec/Logs transport and the serving entry point are implemented.
 The adapter uses the
 [Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
 with external-provider alias testing planned before changing the built-in manifest.
@@ -47,7 +48,7 @@ needs an owner; named volumes, tmpfs, and `stat-virt=off` skip resolution. A
 non-root Dockerless identity still requires a prebuilt developer image or disabled
 stat virtualization with private host permissions, because it cannot be resolved
 from the runner image before VM creation. Resolved IDs control guest mount
-ownership and do not change host inode ownership. The unary adapter applies
+ownership and do not change host inode ownership. The runtime adapter applies
 these IDs and validates mount configuration before import or creation. `RunImage`
 rejects an existing VM with `AlreadyExists`; deletion is an explicit lifecycle
 operation that stops a running VM before removing it. It never replaces a VM
@@ -57,8 +58,32 @@ Additional bind mounts use runtime defaults; only the primary workspace
 mount receives the configured permission policy and resolved owner.
 
 Client tests use subprocess fixtures and a local OCI registry; they do not
-require an installed MicroSandbox runtime or Docker daemon. Real runtime parity
-validation will accompany the external provider adapter.
+require an installed MicroSandbox runtime or Docker daemon. Executable tests
+perform the real plugin handshake, stream binary logs through a CLI fixture,
+and verify native SDK loading and backend-failure propagation in an isolated
+catalog. Structured execution-event fixtures cover binary duplex streams,
+guest exits, and cleanup. These tests do not certify real VM runtime parity,
+which will accompany the external provider alias.
+
+Exec uses the official MicroSandbox Go SDK v0.7.7 for structured, non-PTY guest
+execution. Only a guest `Exited` event produces a terminal exit frame, including
+nonzero guest exit codes. Backend failures, missing completion, cancellation,
+and output failures remain RPC errors. The CLI still handles lifecycle and logs.
+Exec requires msb 0.7.7 or newer; older installations receive an explicit
+unsupported error before SDK access. Lifecycle operations retain their existing
+version policy.
+
+Exec preserves literal argv and the requested user and emits separate bounded
+stdout/stderr frames. TTY, workdir, and environment overrides are rejected
+explicitly. CloseStdin closes command input without canceling the command;
+RPC cancellation kills the guest execution and releases its SDK handles. Commands
+may finish before stdin closes. Connecting for execution does not start a stopped
+VM or acquire ownership of its lifecycle. Logs returns finite merged output.
+
+Building this external provider now requires CGO and a C compiler. The SDK embeds
+its released native library for Linux amd64/arm64, macOS arm64, and Windows
+amd64/arm64. Devsy core does not gain a native dependency. Runtime parity with a
+real MicroSandbox VM remains a separate gate before provider cutover.
 
 ## Development
 

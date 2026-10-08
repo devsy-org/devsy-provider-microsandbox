@@ -23,7 +23,7 @@ jobs:
           go-version-file: go.mod
       - run: go test -race ./...
       - run: go vet ./...
-      - name: Build and smoke-test bootstrap entry point
+      - name: Build and smoke-test plugin entry point
         shell: bash
         run: |
           go build -ldflags '-X main.version=ci' -o "$RUNNER_TEMP/runtime.exe" ./cmd/devsy-runtime-microsandbox
@@ -32,7 +32,7 @@ jobs:
           actual="$(cat "$RUNNER_TEMP/version.txt")"
           test "$actual" = "$expected"
           if "$RUNNER_TEMP/runtime.exe" serve; then
-            echo 'Bootstrap must reject serving before runtime implementation.' >&2
+            echo 'Serving without the plugin handshake must be rejected.' >&2
             exit 1
           fi
   pre-commit:

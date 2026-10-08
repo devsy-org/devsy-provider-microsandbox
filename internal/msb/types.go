@@ -44,7 +44,7 @@ type Info struct {
 }
 
 // ExecRequest carries a non-PTY command and its byte streams.
-// Exec owns Stdin and closes it on return. Close must unblock a pending Read.
+// Exec and Execute own Stdin and close it on return. Close must unblock a pending Read.
 type ExecRequest struct {
 	Command string
 	Argv    []string
