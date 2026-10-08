@@ -55,10 +55,15 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
       - run: task lint
+  distribution:
+    name: Distribution
+    uses: ./.github/workflows/distribution.yml
+    with:
+      version: v0.0.0-ci
   release-please:
     name: Release Please
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [test, pre-commit, lint]
+    needs: [test, pre-commit, lint, distribution]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -98,7 +103,8 @@ jobs:
           if [[ "$behind" -gt 0 ]]; then
             gh pr update-branch "$release_pr"
           fi
-          gh pr merge --auto --squash "$release_pr"
+          release_title="$(gh pr view "$release_pr" --json title --jq .title)"
+          gh pr merge --auto --squash --subject "$release_title" --body '' "$release_pr"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}

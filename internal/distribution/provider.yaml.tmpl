@@ -1,0 +1,77 @@
+name: microsandbox
+version: {{.Tag}}
+icon: https://dl.devsy.sh/assets/devsy.svg
+home: https://github.com/devsy-org/devsy-provider-microsandbox
+description: |-
+  Experimental external MicroSandbox runtime for Devsy
+optionGroups:
+  - options:
+      - MICROSANDBOX_MEMORY
+      - MICROSANDBOX_CPUS
+      - MICROSANDBOX_MAX_MEMORY
+      - MICROSANDBOX_MAX_CPUS
+      - MICROSANDBOX_STORAGE
+      - MICROSANDBOX_BLOCK_EGRESS
+      - MICROSANDBOX_EPHEMERAL
+      - MICROSANDBOX_WORKSPACE_HOST_PERMISSIONS
+      - MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION
+      - INACTIVITY_TIMEOUT
+    name: "Advanced Options"
+options:
+  MICROSANDBOX_MEMORY:
+    description: "Guest memory limit in MiB. Empty uses the runtime default."
+    default: "2048"
+  MICROSANDBOX_CPUS:
+    description: "Number of virtual CPUs. Empty uses the runtime default."
+  MICROSANDBOX_MAX_MEMORY:
+    description: "Hotplug memory ceiling in MiB. Empty uses the runtime default."
+  MICROSANDBOX_MAX_CPUS:
+    description: "Hotplug CPU ceiling. Empty uses the runtime default."
+  MICROSANDBOX_STORAGE:
+    description: "OCI root disk size in GiB. Empty uses the runtime default. Falls back to devcontainer.json's hostRequirements.storage when set."
+  MICROSANDBOX_BLOCK_EGRESS:
+    description: "If true, deny the microVM outbound public network (sandbox hardening)."
+    default: "false"
+    type: boolean
+  MICROSANDBOX_EPHEMERAL:
+    description: "If true, boot from a tmpfs root disk so the microVM's disk state is discarded when it stops. Sized by MICROSANDBOX_STORAGE/hostRequirements.storage, or 8GiB if neither is set."
+    default: "false"
+    type: boolean
+  MICROSANDBOX_WORKSPACE_HOST_PERMISSIONS:
+    description: "Workspace bind-mount host permission policy."
+    default: "mirror"
+    enum:
+      - value: mirror
+        displayName: "Mirror guest rwx mode changes to the host workspace."
+      - value: private
+        displayName: "Keep guest chmod changes in MicroSandbox metadata only."
+  MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION:
+    description: "Workspace bind-mount stat virtualization policy."
+    default: "strict"
+    enum:
+      - value: strict
+        displayName: "Require stat virtualization support."
+      - value: relaxed
+        displayName: "Use stat virtualization where supported."
+      - value: off
+        displayName: "Expose literal host ownership and modes."
+  INACTIVITY_TIMEOUT:
+    description: "If defined, will automatically stop the microVM after the inactivity period. Examples: 10m, 1h"
+agent:
+  containerInactivityTimeout: ${INACTIVITY_TIMEOUT}
+  local: true
+  driver: external
+  external:
+    binary: DEVSY_RUNTIME_DRIVER
+    args: [serve]
+    imageBackend: docker
+  binaries:
+    DEVSY_RUNTIME_DRIVER:
+{{range .Binaries}}      - os: {{.OS}}
+        arch: {{.Arch}}
+        path: https://github.com/devsy-org/devsy-provider-microsandbox/releases/download/{{$.Tag}}/{{.Name}}
+        name: {{.Name}}
+        checksum: {{.Checksum}}
+{{end}}exec:
+  command: |-
+    "${DEVSY}" internal sh -c "${COMMAND}"
