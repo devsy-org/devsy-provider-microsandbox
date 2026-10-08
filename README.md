@@ -7,18 +7,19 @@ External MicroSandbox runtime provider for [Devsy](https://github.com/devsy-org/
 This repository contains the project tooling and the extracted MicroSandbox CLI
 client in `internal/msb`. The client covers lifecycle commands, non-PTY byte
 streams, mount encoding, version parsing, and image loading.
-The executable supports `--version` and deliberately fails other invocations;
-it does not yet serve Runtime Protocol v1 or create workspaces. There is no
-installable external provider manifest or runtime release asset yet.
+The executable supports `--version` and `serve` through the Runtime SDK plugin
+handshake. It implements lifecycle RPCs, binary non-PTY Exec, and finite merged
+Logs. There is no installable external provider manifest or runtime release asset
+yet.
 
 Use Devsy's built-in `microsandbox` provider for workspaces. It remains supported
 while the external runtime is implemented and tested for parity. This repository
 does not change existing provider configurations.
 
 Image snapshot preparation follows the current built-in driver; workspace owner
-resolution is available. The Runtime v1 unary adapter now maps configuration,
+resolution is available. The Runtime v1 adapter maps configuration,
 preflight, capability reporting, image creation, inspection, and lifecycle calls.
-Exec/Logs transport and the serving entry point remain to be implemented.
+Binary Exec/Logs transport and the serving entry point are implemented.
 The adapter uses the
 [Devsy Runtime SDK](https://github.com/devsy-org/devsy-runtime-sdk),
 with external-provider alias testing planned before changing the built-in manifest.
@@ -47,7 +48,7 @@ needs an owner; named volumes, tmpfs, and `stat-virt=off` skip resolution. A
 non-root Dockerless identity still requires a prebuilt developer image or disabled
 stat virtualization with private host permissions, because it cannot be resolved
 from the runner image before VM creation. Resolved IDs control guest mount
-ownership and do not change host inode ownership. The unary adapter applies
+ownership and do not change host inode ownership. The runtime adapter applies
 these IDs and validates mount configuration before import or creation. `RunImage`
 rejects an existing VM with `AlreadyExists`; deletion is an explicit lifecycle
 operation that stops a running VM before removing it. It never replaces a VM
@@ -57,8 +58,18 @@ Additional bind mounts use runtime defaults; only the primary workspace
 mount receives the configured permission policy and resolved owner.
 
 Client tests use subprocess fixtures and a local OCI registry; they do not
-require an installed MicroSandbox runtime or Docker daemon. Real runtime parity
-validation will accompany the external provider adapter.
+require an installed MicroSandbox runtime or Docker daemon. Executable tests
+perform the real plugin handshake and stream binary data through
+a subprocess CLI fixture. They do not certify MicroSandbox runtime parity, which
+will accompany the external provider alias.
+
+Exec preserves literal argv and the requested user, emits separate bounded
+stdout/stderr frames, and reports ordinary command failures in a terminal exit
+frame. Backend/transport failures remain RPC errors. TTY, workdir, and environment
+overrides are rejected explicitly. CloseStdin closes command input without
+canceling the command; RPC cancellation stops and reaps the CLI process. Commands
+may finish before stdin closes. Logs merges backend streams into bounded frames
+and returns after the current log output, without following.
 
 ## Development
 

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"io"
 	"math"
 	"net/http/httptest"
 	"strings"
@@ -86,7 +87,7 @@ func (s *runtimeSuite) TestInfo() {
 	info, err := s.runtime.Info(context.Background(), &runtimev1.InfoRequest{})
 	s.Require().NoError(err)
 	s.NoError(runtimev1.ValidateInfo(info))
-	s.False(info.GetCapabilities().GetLogs())
+	s.True(info.GetCapabilities().GetLogs())
 	s.True(info.GetCapabilities().GetRequiresWorkspaceChown())
 }
 
@@ -302,6 +303,8 @@ func (s *runtimeSuite) prepareImage() {
 }
 
 type fakeClient struct {
+	exec           func(context.Context, msb.ExecRequest) error
+	logs           func(context.Context, io.Writer) error
 	prepareStarted chan struct{}
 	calls          []string
 	version        string
@@ -370,6 +373,18 @@ func (c *fakeClient) Remove(context.Context, string) error {
 	}
 	c.info = nil
 	return nil
+}
+
+func (c *fakeClient) Exec(ctx context.Context, _ string, req msb.ExecRequest) error {
+	return c.exec(ctx, req)
+}
+
+func (c *fakeClient) Logs(
+	ctx context.Context,
+	_ string,
+	w io.Writer,
+) error {
+	return c.logs(ctx, w)
 }
 
 func (c *fakeClient) record(call string) error {

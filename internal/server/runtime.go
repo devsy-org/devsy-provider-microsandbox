@@ -1,5 +1,4 @@
 // Package server maps Runtime Protocol v1 lifecycle calls to MicroSandbox.
-// Exec and Logs transport are intentionally not implemented by this foundation.
 package server
 
 import (
@@ -7,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"runtime"
 	"time"
 
@@ -36,9 +36,11 @@ type Client interface {
 	Start(context.Context, string) error
 	Stop(context.Context, string) error
 	Remove(context.Context, string) error
+	Exec(context.Context, string, msb.ExecRequest) error
+	Logs(context.Context, string, io.Writer) error
 }
 
-// Runtime implements unary lifecycle operations. It is not yet a serving entry point.
+// Runtime implements Runtime Protocol v1 lifecycle and non-PTY streaming operations.
 type Runtime struct {
 	runtimev1.UnimplementedRuntimeDriverServer
 	client  Client
@@ -66,7 +68,7 @@ func New(client Client, cfg config.Config, version string) (*Runtime, error) {
 	}, nil
 }
 
-// Info advertises completed capabilities; Logs remains disabled until transport lands.
+// Info advertises the runtime capabilities supported by this adapter.
 func (r *Runtime) Info(
 	ctx context.Context,
 	_ *runtimev1.InfoRequest,
@@ -94,6 +96,7 @@ func (r *Runtime) Info(
 			RequiresWorkspaceChown: true,
 			RecreateMode:           runtimev1.RecreateMode_RECREATE_MODE_DELETE,
 			ProvisioningPreflight:  true,
+			Logs:                   true,
 		},
 	}, nil
 }
