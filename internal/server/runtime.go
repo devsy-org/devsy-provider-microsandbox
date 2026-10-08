@@ -25,7 +25,7 @@ const (
 	maxSandboxNameLen           = 128
 )
 
-// Client is the lifecycle capability needed by the protocol adapter.
+// Client is the runtime capability needed by the protocol adapter.
 type Client interface {
 	EnsureInstalled(context.Context) error
 	Version(context.Context) (string, error)
@@ -36,7 +36,7 @@ type Client interface {
 	Start(context.Context, string) error
 	Stop(context.Context, string) error
 	Remove(context.Context, string) error
-	Exec(context.Context, string, msb.ExecRequest) error
+	Execute(context.Context, string, msb.ExecRequest) (int, error)
 	Logs(context.Context, string, io.Writer) error
 }
 

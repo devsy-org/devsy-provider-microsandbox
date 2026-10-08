@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -9,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"testing"
 	"time"
 
@@ -71,24 +69,13 @@ func (s *entrypointSuite) TestVersionAndArgumentValidation() {
 	}
 }
 
-func (s *entrypointSuite) TestRealPluginHandshakeAndStreams() {
+func (s *entrypointSuite) TestRealPluginHandshakeAndLogs() {
 	client := s.pluginClient()
 	info, err := client.Info(s.ctx(), &runtimev1.InfoRequest{})
 	s.Require().NoError(err)
 	s.NoError(runtimev1.ValidateInfo(info))
 	s.Equal("test", info.GetDriverVersion())
 	s.True(info.GetCapabilities().GetLogs())
-	stream, err := client.Exec(s.ctx())
-	s.Require().NoError(err)
-	s.Require().NoError(stream.Send(execStart("echo")))
-	data := bytes.Repeat([]byte{0, 255, 13, 10}, 20000)
-	sent := make(chan error, 1)
-	go func() { sent <- sendFixtureInput(stream, data) }()
-	stdout, stderr, exit := s.readOutput(stream)
-	s.NoError(<-sent)
-	s.Equal(data, stdout)
-	s.Equal([]byte("diagnostic\x00\xff"), stderr)
-	s.Equal(int32(0), exit.GetExitCode())
 	logs, err := client.Logs(s.ctx(), &runtimev1.LogsRequest{WorkspaceId: "workspace"})
 	s.Require().NoError(err)
 	chunk, err := logs.Recv()
@@ -98,27 +85,26 @@ func (s *entrypointSuite) TestRealPluginHandshakeAndStreams() {
 	s.ErrorIs(err, io.EOF)
 }
 
-func (s *entrypointSuite) TestRealPluginNonzeroExit() {
+func (s *entrypointSuite) TestRealPluginRejectsOldExecutionBackend() {
 	client := s.pluginClient()
 	stream, err := client.Exec(s.ctx())
 	s.Require().NoError(err)
-	s.Require().NoError(stream.Send(execStart("exit7")))
-	_, _, exit := s.readOutput(stream)
-	s.Equal(int32(7), exit.GetExitCode())
-	s.Empty(exit.GetSignal())
+	s.Require().NoError(stream.Send(execStart("echo")))
+	_, err = stream.Recv()
+	s.Equal(codes.Unimplemented, status.Code(err))
+	s.ErrorContains(err, "requires msb 0.7.7")
 }
 
-func (s *entrypointSuite) TestRealPluginCLISignalFailure() {
-	if runtime.GOOS == "windows" {
-		s.T().Skip("Unix CLI signal termination")
-	}
+func (s *entrypointSuite) TestRealPluginNativeBackendFailure() {
+	s.T().Setenv("DEVSY_MSB_ENTRYPOINT_VERSION", "0.7.7")
 	client := s.pluginClient()
 	stream, err := client.Exec(s.ctx())
 	s.Require().NoError(err)
-	s.Require().NoError(stream.Send(execStart("signal")))
-	_, err = stream.Recv()
+	s.Require().NoError(stream.Send(execStart("echo")))
+	frame, err := stream.Recv()
+	s.Nil(frame)
 	s.Equal(codes.Internal, status.Code(err))
-	s.ErrorContains(err, "msb CLI terminated by signal")
+	s.ErrorContains(err, "sandbox not found: devsy-workspace")
 }
 
 func (s *entrypointSuite) pluginClient() runtimev1.RuntimeDriverClient {
@@ -140,6 +126,7 @@ func (s *entrypointSuite) pluginClient() runtimev1.RuntimeDriverClient {
 		os.Environ(),
 		fixtureEnv+"=1",
 		"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"MSB_HOME="+s.T().TempDir(),
 	)
 	client := hplugin.NewClient(&hplugin.ClientConfig{
 		HandshakeConfig: sdkplugin.Handshake(),
@@ -176,95 +163,26 @@ func execStart(command string) *runtimev1.ExecClientMessage {
 	}
 }
 
-func sendFixtureInput(stream runtimev1.RuntimeDriver_ExecClient, data []byte) error {
-	for len(data) > 0 {
-		n := min(len(data), runtimev1.ChunkSize)
-		if err := stream.Send(
-			&runtimev1.ExecClientMessage{
-				Payload: &runtimev1.ExecClientMessage_Stdin{Stdin: data[:n]},
-			},
-		); err != nil {
-			return err
-		}
-		data = data[n:]
-	}
-	if err := stream.Send(
-		&runtimev1.ExecClientMessage{
-			Payload: &runtimev1.ExecClientMessage_CloseStdin{CloseStdin: &runtimev1.CloseStdin{}},
-		},
-	); err != nil {
-		return err
-	}
-	return stream.CloseSend()
-}
-
-func (s *entrypointSuite) readOutput(
-	stream runtimev1.RuntimeDriver_ExecClient,
-) (stdout, stderr []byte, exit *runtimev1.ExecExit) {
-	s.T().Helper()
-	for {
-		frame, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		s.Require().NoError(err)
-		s.Require().Nil(exit, "frame after exit")
-		switch p := frame.Payload.(type) {
-		case *runtimev1.ExecServerMessage_Stdout:
-			stdout = append(stdout, p.Stdout.GetData()...)
-		case *runtimev1.ExecServerMessage_Stderr:
-			stderr = append(stderr, p.Stderr.GetData()...)
-		case *runtimev1.ExecServerMessage_Exit:
-			exit = p.Exit
-		default:
-			s.T().Fatal("unknown output frame")
-		}
-	}
-	s.Require().NotNil(exit)
-	return stdout, stderr, exit
-}
-
 func msbFixture(args []string) int {
 	if len(args) == 0 {
 		return 2
 	}
 	switch args[0] {
 	case "--version":
-		_, _ = fmt.Fprintln(os.Stdout, "msb 0.7.2")
+		_, _ = fmt.Fprintln(os.Stdout, "msb "+fixtureVersion())
 	case "inspect":
 		_, _ = fmt.Fprintln(os.Stdout, `{"name":"devsy-workspace","status":"Running"}`)
 	case "logs":
 		_, _ = os.Stdout.Write([]byte("logs\x00\xff"))
-	case "exec":
-		return fixtureExec(args)
 	default:
 		return 2
 	}
 	return 0
 }
 
-func fixtureExec(args []string) int {
-	separator := slices.Index(args, "--")
-	if separator < 0 || separator+1 >= len(args) {
-		return 2
+func fixtureVersion() string {
+	if version := os.Getenv("DEVSY_MSB_ENTRYPOINT_VERSION"); version != "" {
+		return version
 	}
-	if args[separator+1] == "signal" {
-		process, err := os.FindProcess(os.Getpid())
-		if err != nil {
-			return 2
-		}
-		if err := process.Signal(os.Interrupt); err != nil {
-			return 2
-		}
-		time.Sleep(time.Second)
-		return 2
-	}
-	if args[separator+1] == "exit7" {
-		return 7
-	}
-	_, _ = os.Stderr.Write([]byte("diagnostic\x00\xff"))
-	if _, err := io.Copy(os.Stdout, os.Stdin); err != nil {
-		return 3
-	}
-	return 0
+	return "0.7.2"
 }

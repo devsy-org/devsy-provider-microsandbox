@@ -303,6 +303,7 @@ func (s *runtimeSuite) prepareImage() {
 }
 
 type fakeClient struct {
+	exitCode       int
 	exec           func(context.Context, msb.ExecRequest) error
 	logs           func(context.Context, io.Writer) error
 	prepareStarted chan struct{}
@@ -375,8 +376,8 @@ func (c *fakeClient) Remove(context.Context, string) error {
 	return nil
 }
 
-func (c *fakeClient) Exec(ctx context.Context, _ string, req msb.ExecRequest) error {
-	return c.exec(ctx, req)
+func (c *fakeClient) Execute(ctx context.Context, _ string, req msb.ExecRequest) (int, error) {
+	return c.exitCode, c.exec(ctx, req)
 }
 
 func (c *fakeClient) Logs(

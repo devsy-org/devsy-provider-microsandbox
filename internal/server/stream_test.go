@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os/exec"
 	"time"
 
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
@@ -383,4 +384,28 @@ func (s *runtimeSuite) TestExecHalfCloseWithoutStart() {
 	_, err = stream.Recv()
 	s.Equal(codes.InvalidArgument, status.Code(err))
 	s.Empty(s.client.calls)
+}
+
+func (s *runtimeSuite) TestExecGuestNonzeroExitIsNotBackendFailure() {
+	ctx, client := s.streamingClient()
+	s.client.exitCode = 1
+	s.client.exec = func(_ context.Context, req msb.ExecRequest) error {
+		return req.Stdin.Close()
+	}
+	stream := s.execStream(ctx, client)
+	result, err := readTestOutput(stream)
+	s.Require().NoError(err)
+	s.Equal(int32(1), result.exit.GetExitCode())
+}
+
+func (s *runtimeSuite) TestExecBackendProcessExitIsRPCFailure() {
+	ctx, client := s.streamingClient()
+	s.client.exec = func(_ context.Context, req msb.ExecRequest) error {
+		_ = req.Stdin.Close()
+		return &exec.ExitError{}
+	}
+	stream := s.execStream(ctx, client)
+	frame, err := stream.Recv()
+	s.Nil(frame)
+	s.Equal(codes.Internal, status.Code(err))
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os/exec"
 	"sync"
 
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
@@ -15,7 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-// Exec bridges non-PTY, literal argv and binary streams to msb exec --stream.
+// Exec bridges non-PTY, literal argv and binary streams to structured guest execution.
 func (r *Runtime) Exec(
 	stream grpc.BidiStreamingServer[runtimev1.ExecClientMessage, runtimev1.ExecServerMessage],
 ) error {
@@ -93,7 +92,7 @@ func (r *Runtime) execute(
 		cancel,
 		func(frame *runtimev1.ExecServerMessage) error { return stream.Send(frame) },
 	)
-	err := r.client.Exec(ctx, sandboxName(start.GetWorkspaceId()), msb.ExecRequest{
+	code, err := r.client.Execute(ctx, sandboxName(start.GetWorkspaceId()), msb.ExecRequest{
 		Argv: start.GetArgv(), User: start.GetUser(), Stdin: input,
 		Stdout: execOutput{sender: output}, Stderr: execOutput{sender: output, stderr: true},
 	})
@@ -101,7 +100,17 @@ func (r *Runtime) execute(
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	exit, err := commandExit(err)
+	if errors.Is(err, msb.ErrExecUnsupported) {
+		return runtimeError(
+			codes.Unimplemented,
+			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_UNSUPPORTED,
+			err.Error(),
+		)
+	}
+	if err != nil {
+		return backendError(stream.Context(), err)
+	}
+	exit, err := exitCode(code)
 	if err != nil {
 		return backendError(stream.Context(), err)
 	}
@@ -143,17 +152,6 @@ func receiveInput(
 			return
 		}
 	}
-}
-
-func commandExit(err error) (*runtimev1.ExecExit, error) {
-	if err == nil {
-		return &runtimev1.ExecExit{}, nil
-	}
-	var failed *exec.ExitError
-	if !errors.As(err, &failed) {
-		return nil, err
-	}
-	return processExit(failed)
 }
 
 func inputBytes(frame *runtimev1.ExecClientMessage) ([]byte, error) {

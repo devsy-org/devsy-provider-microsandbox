@@ -59,22 +59,31 @@ mount receives the configured permission policy and resolved owner.
 
 Client tests use subprocess fixtures and a local OCI registry; they do not
 require an installed MicroSandbox runtime or Docker daemon. Executable tests
-perform the real plugin handshake and stream binary data through
-a subprocess CLI fixture. They do not certify MicroSandbox runtime parity, which
-will accompany the external provider alias.
+perform the real plugin handshake, stream binary logs through a CLI fixture,
+and verify native SDK loading and backend-failure propagation in an isolated
+catalog. Structured execution-event fixtures cover binary duplex streams,
+guest exits, and cleanup. These tests do not certify real VM runtime parity,
+which will accompany the external provider alias.
 
-Exec preserves literal argv and the requested user, emits separate bounded
-stdout/stderr frames, and reports the CLI process exit status in a terminal exit
-frame. CLI launch, I/O, cancellation, and signal failures remain RPC errors.
-TTY, workdir, and environment overrides are rejected explicitly. CloseStdin closes command input without
-canceling the command; RPC cancellation stops and reaps the CLI process. Commands
-may finish before stdin closes. Logs merges backend streams into bounded frames
-and returns after the current log output, without following.
+Exec uses the official MicroSandbox Go SDK v0.7.7 for structured, non-PTY guest
+execution. Only a guest `Exited` event produces a terminal exit frame, including
+nonzero guest exit codes. Backend failures, missing completion, cancellation,
+and output failures remain RPC errors. The CLI still handles lifecycle and logs.
+Exec requires msb 0.7.7 or newer; older installations receive an explicit
+unsupported error before SDK access. Lifecycle operations retain their existing
+version policy.
 
-The current MicroSandbox CLI does not expose a separate guest completion channel.
-A nonzero CLI exit can therefore mean either a guest result or a backend error.
-This ambiguity must be resolved before runtime parity and provider release; the
-streaming adapter does not infer error categories from stderr text.
+Exec preserves literal argv and the requested user and emits separate bounded
+stdout/stderr frames. TTY, workdir, and environment overrides are rejected
+explicitly. CloseStdin closes command input without canceling the command;
+RPC cancellation kills the guest execution and releases its SDK handles. Commands
+may finish before stdin closes. Connecting for execution does not start a stopped
+VM or acquire ownership of its lifecycle. Logs returns finite merged output.
+
+Building this external provider now requires CGO and a C compiler. The SDK embeds
+its released native library for Linux amd64/arm64, macOS arm64, and Windows
+amd64/arm64. Devsy core does not gain a native dependency. Runtime parity with a
+real MicroSandbox VM remains a separate gate before provider cutover.
 
 ## Development
 

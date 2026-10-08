@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-// Client invokes the MicroSandbox CLI. A zero value discovers msb on PATH or
-// in its standard per-user installation directories.
+// Client uses the CLI for lifecycle and logs and the SDK for guest execution.
+// A zero value discovers msb on PATH or in its standard per-user installation directories.
 type Client struct {
 	Binary string
 	// DockerBinary selects a Docker-compatible CLI for local image snapshots.
