@@ -96,6 +96,7 @@ func (r *Runtime) Info(
 			RequiresWorkspaceChown: true,
 			RecreateMode:           runtimev1.RecreateMode_RECREATE_MODE_DELETE,
 			ProvisioningPreflight:  true,
+			ReusePreflight:         true,
 			Logs:                   true,
 		},
 	}, nil
