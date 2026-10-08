@@ -9,8 +9,8 @@ client in `internal/msb`. The client covers lifecycle commands, non-PTY byte
 streams, mount encoding, version parsing, and image loading.
 The executable supports `--version` and `serve` through the Runtime SDK plugin
 handshake. It implements lifecycle RPCs, binary non-PTY Exec, and finite merged
-Logs. There is no installable external provider manifest or runtime release asset
-yet.
+Logs. Releases following this change will include native executables, SHA-256
+checksums, and an installable `provider.yaml`.
 
 Use Devsy's built-in `microsandbox` provider for workspaces. It remains supported
 while the external runtime is implemented and tested for parity. This repository
@@ -109,8 +109,42 @@ pass, following Devsy provider conventions. Repository setup requires the Devsy
 GitHub App installation, its organization secrets (`DEVSY_GITHUB_APP_ID` and
 `DEVSY_GITHUB_APP_PRIVATE_KEY`), and auto-merge enabled for release PRs. CI will
 fail the release job when these are unavailable rather than silently skip it.
-Initial tags document project development; runtime binaries and a checksum-pinned
-`provider.yaml` will be added when the runtime implementation is usable.
+The release workflow builds and tests native executables on Linux amd64/arm64,
+macOS arm64, and Windows amd64. It generates `provider.yaml` from those exact
+executables, verifies downloads using Devsy's checksum resolver, and installs an
+alias in an isolated configuration before publishing the complete asset set.
+Windows arm64 and macOS amd64 are not distributed by this workflow.
+
+## Experimental external installation
+
+Use a Devsy build containing external runtime support (commit
+`017e389afcd23132ce45277c387a57440a880e7f` or later), an installed MicroSandbox
+CLI 0.7.7 or newer for Exec, and Docker for image builds. Once a release containing
+`provider.yaml` is available:
+
+```sh
+devsy provider add --use=false --name microsandbox-external \
+  github.com/devsy-org/devsy-provider-microsandbox
+```
+
+This installs a separate provider configuration without activating it. Initialize
+it, then explicitly select it when starting a workspace:
+
+```sh
+devsy provider init microsandbox-external
+devsy workspace up . --provider microsandbox-external
+```
+
+Existing built-in
+`microsandbox` configurations continue to use the built-in driver. Options retain
+their existing names and defaults. Real VM parity is still required before the
+built-in provider can switch to the external implementation.
+
+For local packaging, place all four native executables in `dist/`, then run
+`mise exec -- go run ./cmd/package-provider v0.1.3 dist`. The generator fails if
+any executable is missing or empty. Install the generated `dist/provider.yaml`
+under the same alias when testing local builds; its download URLs refer to the
+specified GitHub release, so that release must contain the corresponding assets.
 
 ## License
 

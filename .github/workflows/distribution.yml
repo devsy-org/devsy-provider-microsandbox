@@ -1,0 +1,114 @@
+name: Native distribution
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Package (${{ matrix.os }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+            arch: amd64
+            suffix: ''
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+            suffix: ''
+          - runner: macos-latest
+            os: darwin
+            arch: arm64
+            suffix: ''
+          - runner: windows-latest
+            os: windows
+            arch: amd64
+            suffix: '.exe'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Build and test on the native platform
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          TARGET_OS: ${{ matrix.os }}
+          TARGET_ARCH: ${{ matrix.arch }}
+          SUFFIX: ${{ matrix.suffix }}
+          CGO_ENABLED: '1'
+        run: |
+          test "$(go env GOOS)" = "$TARGET_OS"
+          test "$(go env GOARCH)" = "$TARGET_ARCH"
+          go test ./cmd/devsy-runtime-microsandbox
+          mkdir -p dist
+          binary="dist/devsy-runtime-microsandbox-$TARGET_OS-$TARGET_ARCH$SUFFIX"
+          go build -trimpath -ldflags "-X main.version=$VERSION" -o "$binary" ./cmd/devsy-runtime-microsandbox
+          test "$("./$binary" --version)" = "devsy-runtime-microsandbox $VERSION"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runtime-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+  manifest:
+    name: Manifest and alias installation
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: provider
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: provider/go.mod
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: runtime-*
+          path: dist
+          merge-multiple: true
+      - name: Generate pinned manifest
+        working-directory: provider
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          go run ./cmd/package-provider "$VERSION" ../dist
+          cp LICENSE ../dist/LICENSE
+          sdk_dir="$(go mod download -json github.com/superradcompany/microsandbox/sdk/go | jq -er '.Dir')"
+          cp "$sdk_dir/LICENSE" ../dist/MICROSANDBOX-SDK-LICENSE
+      - name: Check the complete artifact set
+        working-directory: dist
+        run: sha256sum --check checksums.txt
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: devsy-org/devsy
+          # Host external-driver support, pinned for repeatable provider releases.
+          ref: 017e389afcd23132ce45277c387a57440a880e7f
+          path: devsy
+          persist-credentials: false
+      - name: Verify real host parsing, download, checksum, and alias installation
+        working-directory: devsy
+        env:
+          VERSION: ${{ inputs.version }}
+          DEVSY_HOME: ${{ runner.temp }}/devsy-distribution
+        run: |
+          go run ../provider/integration/provider_install.go "$GITHUB_WORKSPACE/dist" "$VERSION"
+          go build -o "$RUNNER_TEMP/devsy" .
+          "$RUNNER_TEMP/devsy" provider add --use=false microsandbox
+          "$RUNNER_TEMP/devsy" provider add --use=false --name microsandbox-external "$GITHUB_WORKSPACE/dist/provider.yaml"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: provider-release
+          path: dist/*
+          if-no-files-found: error
