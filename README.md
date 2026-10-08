@@ -9,8 +9,8 @@ client in `internal/msb`. The client covers lifecycle commands, non-PTY byte
 streams, mount encoding, version parsing, and image loading.
 The executable supports `--version` and `serve` through the Runtime SDK plugin
 handshake. It implements lifecycle RPCs, binary non-PTY Exec, and finite merged
-Logs. Releases include native executables, SHA-256 checksums, and an installable
-`provider.yaml`.
+Logs. Starting with v0.1.3, releases include native executables, SHA-256 checksums,
+and an installable `provider.yaml`.
 
 Use Devsy's built-in `microsandbox` provider for workspaces. It remains supported
 while the external runtime is implemented and tested for parity. This repository
@@ -127,7 +127,7 @@ Windows arm64 and macOS amd64 are not distributed by this workflow.
 
 Use a Devsy build containing external runtime support (commit
 `017e389afcd23132ce45277c387a57440a880e7f` or later), an installed MicroSandbox
-CLI 0.7.7 or newer for Exec, and Docker for image builds:
+CLI 0.7.7 or newer for Exec, provider v0.1.3 or newer, and Docker for image builds:
 
 ```sh
 devsy provider add --use=false --name microsandbox-external \
