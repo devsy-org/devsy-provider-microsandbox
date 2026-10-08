@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.2...v0.1.3) (2026-10-08)
+
+
+### Features
+
+* **microsandbox:** package checksum-pinned external provider releases ([d771c4f](https://github.com/devsy-org/devsy-provider-microsandbox/commit/d771c4f3b0cf2c347acd28a0ba9eaca89a8fe378))
+* **microsandbox:** serve Runtime v1 command and log streams ([#9](https://github.com/devsy-org/devsy-provider-microsandbox/issues/9)) ([670a1e4](https://github.com/devsy-org/devsy-provider-microsandbox/commit/670a1e484338ea4133fa5b1dd15b582672bc19f3))
+
 ## [0.1.2](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.1...v0.1.2) (2026-10-07)
 
 
