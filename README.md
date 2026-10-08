@@ -127,8 +127,15 @@ devsy provider add --use=false --name microsandbox-external \
   github.com/devsy-org/devsy-provider-microsandbox
 ```
 
-This installs a separate provider configuration without activating it. Select it
-explicitly with `devsy up --provider microsandbox-external`. Existing built-in
+This installs a separate provider configuration without activating it. Initialize
+it, then explicitly select it when starting a workspace:
+
+```sh
+devsy provider init microsandbox-external
+devsy workspace up . --provider microsandbox-external
+```
+
+Existing built-in
 `microsandbox` configurations continue to use the built-in driver. Options retain
 their existing names and defaults. Real VM parity is still required before the
 built-in provider can switch to the external implementation.

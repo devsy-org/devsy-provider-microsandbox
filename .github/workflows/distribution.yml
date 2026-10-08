@@ -85,7 +85,7 @@ jobs:
         run: |
           go run ./cmd/package-provider "$VERSION" ../dist
           cp LICENSE ../dist/LICENSE
-          sdk_dir="$(go list -m -f '{{.Dir}}' github.com/superradcompany/microsandbox/sdk/go)"
+          sdk_dir="$(go mod download -json github.com/superradcompany/microsandbox/sdk/go | jq -er '.Dir')"
           cp "$sdk_dir/LICENSE" ../dist/MICROSANDBOX-SDK-LICENSE
       - name: Check the complete artifact set
         working-directory: dist
