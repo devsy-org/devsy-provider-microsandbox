@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.4...v0.1.5) (2026-10-09)
+
+
+### Bug Fixes
+
+* **runtime:** report stopped VM state in Find ([99bc8cc](https://github.com/devsy-org/devsy-provider-microsandbox/commit/99bc8cc8eca754b48f94bcffacccd2d5bb3c0c01))
+
 ## [0.1.4](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.3...v0.1.4) (2026-10-08)
 
 
