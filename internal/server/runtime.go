@@ -172,7 +172,7 @@ func (r *Runtime) Find(
 	if info == nil {
 		return &runtimev1.FindResponse{}, nil
 	}
-	state := "exited"
+	state := "stopped"
 	if info.Running {
 		state = "running"
 	}
