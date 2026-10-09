@@ -199,6 +199,23 @@ func (s *runtimeSuite) TestFindPreservesFailureAndMetadata() {
 	s.NotEmpty(status.Convert(err).Details())
 }
 
+func (s *runtimeSuite) TestFindUsesRuntimeStatesAcrossStopStart() {
+	s.client.info = &msb.Info{Name: "vm", Running: true}
+	ctx := context.Background()
+	_, err := s.runtime.Stop(ctx, &runtimev1.StopRequest{WorkspaceId: testWorkspace})
+	s.Require().NoError(err)
+	found, err := s.runtime.Find(ctx, &runtimev1.FindRequest{WorkspaceId: testWorkspace})
+	s.Require().NoError(err)
+	s.Require().True(found.GetFound())
+	s.Require().Equal("stopped", found.GetContainer().GetState().GetStatus())
+	_, err = s.runtime.Start(ctx, &runtimev1.StartRequest{WorkspaceId: testWorkspace})
+	s.Require().NoError(err)
+	found, err = s.runtime.Find(ctx, &runtimev1.FindRequest{WorkspaceId: testWorkspace})
+	s.Require().NoError(err)
+	s.Require().True(found.GetFound())
+	s.Equal("running", found.GetContainer().GetState().GetStatus())
+}
+
 func (s *runtimeSuite) TestFindUnknownCreationTime() {
 	s.client.info = &msb.Info{Name: "vm"}
 	found, err := s.runtime.Find(
