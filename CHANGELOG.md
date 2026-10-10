@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.5...v0.1.6) (2026-10-10)
+
+
+### Bug Fixes
+
+* **distribution:** preserve off policy in provider manifest ([442d5eb](https://github.com/devsy-org/devsy-provider-microsandbox/commit/442d5eb7f4612e5766984e04560e080b8cd87ca3))
+
 ## [0.1.5](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.4...v0.1.5) (2026-10-09)
 
 
