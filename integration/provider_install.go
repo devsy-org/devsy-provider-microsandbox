@@ -47,6 +47,17 @@ func run() error {
 	if err := provider.ValidateExternalDriverConfig(cfg.Agent); err != nil {
 		return err
 	}
+	option := cfg.Options["MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION"]
+	if option == nil {
+		return fmt.Errorf("missing workspace stat virtualization option")
+	}
+	values := make([]string, 0, len(option.Enum))
+	for _, choice := range option.Enum {
+		values = append(values, choice.Value)
+	}
+	if got := strings.Join(values, ","); got != "strict,relaxed,off" {
+		return fmt.Errorf("workspace stat virtualization values %q != strict,relaxed,off", got)
+	}
 	server := httptest.NewServer(http.FileServer(http.Dir(directory)))
 	defer server.Close()
 	for _, binary := range cfg.Agent.Binaries[cfg.Agent.External.Binary] {
