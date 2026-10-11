@@ -71,7 +71,7 @@ func New(client Client, cfg config.Config, version string) (*Runtime, error) {
 // Info advertises the runtime capabilities supported by this adapter.
 func (r *Runtime) Info(
 	ctx context.Context,
-	_ *runtimev1.InfoRequest,
+	req *runtimev1.InfoRequest,
 ) (*runtimev1.InfoResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, backendError(ctx, err)
@@ -79,6 +79,10 @@ func (r *Runtime) Info(
 	raw, err := r.client.Version(ctx)
 	if err != nil {
 		return nil, backendError(ctx, err)
+	}
+	mode := runtimev1.RecreateMode_RECREATE_MODE_DELETE
+	if req.GetSupportsRecreateOnRun() {
+		mode = runtimev1.RecreateMode_RECREATE_MODE_ON_RUN
 	}
 	return &runtimev1.InfoResponse{
 		ApiMajor:       runtimev1.APIMajor,
@@ -94,7 +98,7 @@ func (r *Runtime) Info(
 				runtimev1.MountType_MOUNT_TYPE_TMPFS,
 			},
 			RequiresWorkspaceChown: true,
-			RecreateMode:           runtimev1.RecreateMode_RECREATE_MODE_DELETE,
+			RecreateMode:           mode,
 			ProvisioningPreflight:  true,
 			ReusePreflight:         true,
 			Logs:                   true,
@@ -200,7 +204,7 @@ func (r *Runtime) TargetArchitecture(
 	return &runtimev1.TargetArchitectureResponse{Architecture: runtime.GOARCH}, nil
 }
 
-// RunImage validates and imports an immutable snapshot without replacing an existing VM.
+// RunImage permits replacement only when the request explicitly authorizes it.
 func (r *Runtime) RunImage(
 	ctx context.Context,
 	req *runtimev1.RunImageRequest,
@@ -213,7 +217,12 @@ func (r *Runtime) RunImage(
 	if err != nil {
 		return nil, err
 	}
-	if err := r.requireAbsent(ctx, req.GetWorkspaceId()); err != nil {
+	spec.AllowRecreate = req.GetAllowRecreate()
+	if err := r.requireCreationPermission(
+		ctx,
+		req.GetWorkspaceId(),
+		spec.AllowRecreate,
+	); err != nil {
 		return nil, err
 	}
 	prepared, err := r.prepareValidatedImage(ctx, req, &spec)
@@ -331,22 +340,55 @@ func (r *Runtime) acquire(ctx context.Context) error {
 
 func (r *Runtime) release() { <-r.gate }
 
-func (r *Runtime) requireAbsent(ctx context.Context, id string) error {
+func (r *Runtime) requireCreationPermission(
+	ctx context.Context,
+	id string,
+	allowRecreate bool,
+) error {
 	if _, err := r.ProvisioningPreflight(
 		ctx,
 		&runtimev1.ProvisioningPreflightRequest{},
 	); err != nil {
 		return err
 	}
+	if allowRecreate {
+		if err := r.requireReplacementVersion(ctx); err != nil {
+			return err
+		}
+	}
 	info, err := r.find(ctx, id)
 	if err != nil {
 		return err
 	}
-	if info != nil {
+	if info != nil && !allowRecreate {
 		return runtimeError(
 			codes.AlreadyExists,
 			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_ALREADY_EXISTS,
-			"workspace already exists; replacement requires explicit deletion",
+			"workspace already exists; replacement requires explicit authorization",
+		)
+	}
+	return nil
+}
+
+// Recreation safety is validated against the pinned v0.7.7 effective-config contract.
+func (r *Runtime) requireReplacementVersion(ctx context.Context) error {
+	raw, err := r.client.Version(ctx)
+	if err != nil {
+		return backendError(ctx, err)
+	}
+	version, err := msb.ParseVersion(raw)
+	if err != nil {
+		return runtimeError(
+			codes.FailedPrecondition,
+			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
+			err.Error(),
+		)
+	}
+	if version.LT(semver.MustParse("0.7.7")) {
+		return runtimeError(
+			codes.FailedPrecondition,
+			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
+			"MicroSandbox v0.7.7 or newer is required for explicit recreation; update with msb self update",
 		)
 	}
 	return nil
