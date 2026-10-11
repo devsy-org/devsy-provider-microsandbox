@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.6...v0.1.7) (2026-10-11)
+
+
+### Bug Fixes
+
+* **runtime:** use runtime default for ephemeral disk sizing ([d9691ce](https://github.com/devsy-org/devsy-provider-microsandbox/commit/d9691ce28a63a550a851eb014126f64ac36cb586))
+
 ## [0.1.6](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.5...v0.1.6) (2026-10-10)
 
 
