@@ -50,9 +50,22 @@ stat virtualization with private host permissions, because it cannot be resolved
 from the runner image before VM creation. Resolved IDs control guest mount
 ownership and do not change host inode ownership. The runtime adapter applies
 these IDs and validates mount configuration before import or creation. `RunImage`
-rejects an existing VM with `AlreadyExists`; deletion is an explicit lifecycle
-operation that stops a running VM before removing it. It never replaces a VM
-as a side effect of image creation. Invalid operator values and unsupported
+rejects an existing VM with `AlreadyExists` unless that request explicitly sets
+`allow_recreate`. API 1.3 hosts opt in to `ON_RUN` recreation during capability
+discovery and pass that permission separately on each recreation request. Empty
+or older-host discovery requests retain the legacy `DELETE` mode. Discovery and
+provider defaults never authorize a later request.
+
+Explicit recreation requires MicroSandbox v0.7.7 or newer, including when stat
+virtualization is off. This operation-specific gate does not raise the minimum
+for ordinary creation or existing-workspace operations. The adapter prepares and
+validates the image without stopping or removing the old VM, then passes
+`--replace` to MicroSandbox. The supported runtime resolves and validates the
+complete effective configuration, including managed overrides, before replacing
+the old target. Invalid effective configuration preserves that VM; failures after
+replacement begins, such as later mount materialization or launch failures, are
+not rolled back. Image imports and new named-volume preparation may still occur
+before the final runtime validation. Invalid operator values and unsupported
 Docker-specific options return errors instead of being silently ignored.
 Additional bind mounts use runtime defaults; only the primary workspace
 mount receives the configured permission policy and resolved owner.

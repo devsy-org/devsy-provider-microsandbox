@@ -17,6 +17,9 @@ const (
 // plus argv overrides the image CMD.
 func runArgs(sandbox string, spec Spec) []string {
 	args := []string{msbCmdRun, msbFlagDetach, "--name", sandbox}
+	if spec.AllowRecreate {
+		args = append(args, "--replace")
+	}
 	if spec.Entrypoint != "" {
 		args = append(args, "--entrypoint", spec.Entrypoint)
 	}

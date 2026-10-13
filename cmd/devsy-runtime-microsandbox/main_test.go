@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -108,6 +109,10 @@ func (s *entrypointSuite) TestRealPluginNativeBackendFailure() {
 }
 
 func (s *entrypointSuite) pluginClient() runtimev1.RuntimeDriverClient {
+	return s.pluginClientWithEnv()
+}
+
+func (s *entrypointSuite) pluginClientWithEnv(extraEnv ...string) runtimev1.RuntimeDriverClient {
 	s.T().Helper()
 	dir := s.T().TempDir()
 	fixture := filepath.Join(dir, "msb")
@@ -128,6 +133,7 @@ func (s *entrypointSuite) pluginClient() runtimev1.RuntimeDriverClient {
 		"PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"MSB_HOME="+s.T().TempDir(),
 	)
+	cmd.Env = append(cmd.Env, extraEnv...)
 	client := hplugin.NewClient(&hplugin.ClientConfig{
 		HandshakeConfig: sdkplugin.Handshake(),
 		VersionedPlugins: map[int]hplugin.PluginSet{
@@ -167,17 +173,55 @@ func msbFixture(args []string) int {
 	if len(args) == 0 {
 		return 2
 	}
+	if err := recordMSBFixtureInvocation(args); err != nil {
+		return 1
+	}
+	return runMSBFixture(args)
+}
+
+func runMSBFixture(args []string) int {
 	switch args[0] {
 	case "--version":
 		_, _ = fmt.Fprintln(os.Stdout, "msb "+fixtureVersion())
 	case "inspect":
-		_, _ = fmt.Fprintln(os.Stdout, `{"name":"devsy-workspace","status":"Running"}`)
+		return inspectMSBFixture()
 	case "logs":
 		_, _ = os.Stdout.Write([]byte("logs\x00\xff"))
+	case "load":
+		if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
+			return 1
+		}
+	case "run":
 	default:
 		return 2
 	}
 	return 0
+}
+
+func inspectMSBFixture() int {
+	if os.Getenv("DEVSY_MSB_ENTRYPOINT_EXISTING") == "0" {
+		_, _ = fmt.Fprintln(os.Stderr, "sandbox not found")
+		return 1
+	}
+	_, _ = fmt.Fprintln(os.Stdout, `{"name":"devsy-workspace","status":"Running"}`)
+	return 0
+}
+
+func recordMSBFixtureInvocation(args []string) error {
+	path := os.Getenv("DEVSY_MSB_ENTRYPOINT_RECORD")
+	if path == "" {
+		return nil
+	}
+	// #nosec G304 G703 -- The optional fixture log lives in a test-owned directory.
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if err := json.NewEncoder(file).Encode(args); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func fixtureVersion() string {
