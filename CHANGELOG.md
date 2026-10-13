@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.7...v0.1.8) (2026-10-13)
+
+
+### Features
+
+* **runtime:** recreate MicroSandbox on authorized RunImage ([9a7f1b4](https://github.com/devsy-org/devsy-provider-microsandbox/commit/9a7f1b4da922f3d64b8a91d6b4cff2fc474b3975))
+
 ## [0.1.7](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.6...v0.1.7) (2026-10-11)
 
 
