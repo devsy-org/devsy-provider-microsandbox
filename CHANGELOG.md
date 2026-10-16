@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.10...v0.1.11) (2026-10-16)
+
+
+### Bug Fixes
+
+* align MicroSandbox provider description ([5f3429b](https://github.com/devsy-org/devsy-provider-microsandbox/commit/5f3429bcc93915ac4d894ff6d39f67a47f40aff3))
+
 ## [0.1.10](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.9...v0.1.10) (2026-10-16)
 
 
