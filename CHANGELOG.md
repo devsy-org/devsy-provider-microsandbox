@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.9...v0.1.10) (2026-10-16)
+
+
+### Bug Fixes
+
+* support Devsy managed secret tmpfs mounts ([316ded3](https://github.com/devsy-org/devsy-provider-microsandbox/commit/316ded37b34f69d8ae858ea46dfb570d71e2d999))
+
 ## [0.1.9](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.8...v0.1.9) (2026-10-16)
 
 
