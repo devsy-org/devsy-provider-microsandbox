@@ -115,14 +115,34 @@ func convertMount(wire *runtimev1.Mount) (msb.Mount, error) {
 	if err != nil {
 		return msb.Mount{}, err
 	}
-	if err := applyMountOptions(wire.GetOptions(), &mount); err != nil {
-		return msb.Mount{}, err
+	if !devsyManagedSecretTmpfs(wire) {
+		if err := applyMountOptions(wire.GetOptions(), &mount); err != nil {
+			return msb.Mount{}, err
+		}
 	}
 
 	if mount.ReadOnly && mount.Source == "" {
 		return msb.Mount{}, invalidArgument("read-only is supported only for bind mounts")
 	}
 	return mount, nil
+}
+
+func devsyManagedSecretTmpfs(wire *runtimev1.Mount) bool {
+	if wire.GetType() != runtimev1.MountType_MOUNT_TYPE_TMPFS || wire.GetSource() != "" ||
+		wire.GetReadOnly() || len(wire.GetOptions()) != 1 {
+		return false
+	}
+	// These empty native tmpfs mounts start root-owned and not writable by other users.
+	// Devsy verifies tmpfs and secures the directory and files before delivering secrets.
+	// This setup contract does not provide mount-time modes for arbitrary tmpfs mounts.
+	switch wire.GetTarget() {
+	case "/run/devsy/secrets-env":
+		return wire.GetOptions()[0] == "tmpfs-mode=0700"
+	case "/run/secrets":
+		return wire.GetOptions()[0] == "tmpfs-mode=0755"
+	default:
+		return false
+	}
 }
 
 func resolveOwner(
