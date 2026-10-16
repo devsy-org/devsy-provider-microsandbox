@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.8...v0.1.9) (2026-10-16)
+
+
+### Bug Fixes
+
+* accept Docker mount consistency hints ([53d148f](https://github.com/devsy-org/devsy-provider-microsandbox/commit/53d148f51065de34cf638ba92ddbb1e0e23bfbdd))
+
 ## [0.1.8](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.7...v0.1.8) (2026-10-13)
 
 
