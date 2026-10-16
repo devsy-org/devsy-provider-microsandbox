@@ -69,6 +69,14 @@ before the final runtime validation. Invalid operator values and unsupported
 Docker-specific options return errors instead of being silently ignored.
 Docker host-sharing `consistency=` hints are ignored, matching the built-in
 MicroSandbox driver; they do not change stat virtualization or host permissions.
+The two Devsy-managed secret tmpfs mounts accept their generated mode hints:
+`/run/devsy/secrets-env` with `tmpfs-mode=0700` and `/run/secrets` with
+`tmpfs-mode=0755`, each writable with no source or other options. MicroSandbox
+creates empty, root-owned tmpfs mounts with mode 0755. Devsy verifies the dedicated
+tmpfs, sets the terminal-secret directory to 0700 and the intended owner before
+writing values, and creates secret files with mode 0600. These hints use that
+Devsy setup contract; they do not set native mount-time modes. Other tmpfs mode
+requests remain unsupported and fail before backend work.
 Additional bind mounts use runtime defaults; only the primary workspace
 mount receives the configured permission policy and resolved owner.
 
