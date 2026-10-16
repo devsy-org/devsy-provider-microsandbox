@@ -67,6 +67,8 @@ replacement begins, such as later mount materialization or launch failures, are
 not rolled back. Image imports and new named-volume preparation may still occur
 before the final runtime validation. Invalid operator values and unsupported
 Docker-specific options return errors instead of being silently ignored.
+Docker host-sharing `consistency=` hints are ignored, matching the built-in
+MicroSandbox driver; they do not change stat virtualization or host permissions.
 Additional bind mounts use runtime defaults; only the primary workspace
 mount receives the configured permission policy and resolved owner.
 

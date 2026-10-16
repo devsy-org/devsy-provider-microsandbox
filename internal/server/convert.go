@@ -237,6 +237,10 @@ func applyMountOptions(options []string, mount *msb.Mount) error {
 			mount.ReadOnly = true
 		case "rw":
 		default:
+			// Docker host-sharing hints do not change MicroSandbox's mount policy.
+			if strings.HasPrefix(option, "consistency=") {
+				continue
+			}
 			return invalidArgument("unsupported mount option " + option)
 		}
 	}
