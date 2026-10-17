@@ -1,5 +1,50 @@
+[settings]
+experimental = true
+lockfile = true
+lockfile_platforms = ["linux-x64", "macos-arm64"]
+
+[tool_config]
+locked = true
+
 [tools]
 go = "1.26.8"
 golangci-lint = "2.13.2"
 prek = "0.5.2"
-task = "3.51.1"
+
+[tasks.setup]
+description = "Install dependencies and git hooks"
+depends = ["setup:dependencies", "setup:hooks"]
+
+[tasks."setup:dependencies"]
+description = "Download Go modules"
+run = "go mod download"
+
+[tasks."setup:hooks"]
+description = "Install prek git hooks"
+run = "prek install"
+
+[tasks.lint]
+description = "Run golangci-lint and check formatting"
+run = '''
+golangci-lint run
+golangci-lint fmt --diff
+'''
+
+[tasks.format]
+description = "Apply Go formatting"
+run = "golangci-lint fmt"
+
+[tasks.test]
+description = "Run race-enabled Go tests and go vet"
+run = '''
+go test -race ./...
+go vet ./...
+'''
+
+[tasks.build]
+description = "Build dist/devsy-runtime-microsandbox"
+run = "go build -o dist/devsy-runtime-microsandbox ./cmd/devsy-runtime-microsandbox"
+
+[tasks.pre-commit]
+description = "Run all prek hooks"
+run = "prek run --all-files"

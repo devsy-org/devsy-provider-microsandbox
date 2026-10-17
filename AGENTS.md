@@ -8,13 +8,13 @@ Building requires CGO and a C compiler because guest execution uses the official
 MicroSandbox Go SDK and its embedded native library. Devsy core must not acquire
 this native dependency.
 
-Run commands through `mise exec --`:
+Run commands through `mise run`:
 
-- `task test`: race-enabled Go tests and `go vet`.
-- `task lint`: strict golangci-lint checks and a formatting diff.
-- `task format`: apply Go formatting.
-- `task pre-commit`: all `prek.toml` hooks.
-- `task build`: build `dist/devsy-runtime-microsandbox`.
+- `mise run test`: race-enabled Go tests and `go vet`.
+- `mise run lint`: strict golangci-lint checks and a formatting diff.
+- `mise run format`: apply Go formatting.
+- `mise run pre-commit`: all `prek.toml` hooks.
+- `mise run build`: build `dist/devsy-runtime-microsandbox`.
 - `go run ./cmd/package-provider <vSEMVER> <artifact-directory>`: generate release
   metadata from the complete native executable set.
 - `actionlint .github/workflows/*.yml`: validate workflow changes when available.
@@ -47,7 +47,7 @@ invariants and rationale rather than restating code.
 ## Validation and pull requests
 
 Start from current `origin/main`, inspect overlapping work, and preserve unrelated
-changes. Run relevant tests, `task lint`, and `task pre-commit` before pushing.
+changes. Run relevant tests, `mise run lint`, and `mise run pre-commit` before pushing.
 Workflow and distribution changes must pass the native packaging and real Devsy
 installer checks in CI. Keep README instructions standalone and accurate.
 
