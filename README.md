@@ -5,6 +5,9 @@ Run [Devsy](https://github.com/devsy-org/devsy) workspaces in hardware-isolated
 
 ## Getting started
 
+Releases include provider binaries for Linux amd64/arm64, macOS arm64
+(Apple Silicon), and Windows amd64.
+
 Install Devsy and the official MicroSandbox CLI, version 0.7.7 or newer. Follow
 MicroSandbox's installation instructions for your host and ensure `msb --version`
 works in the environment running Devsy. Docker is needed for image builds.
