@@ -43,7 +43,7 @@ Building requires CGO and a C compiler. Install [mise](https://mise.jdx.dev), th
 
 ```sh
 mise install
-mise exec -- task test lint pre-commit build
+mise run test ::: lint ::: pre-commit ::: build
 ```
 
 See [AGENTS.md](AGENTS.md) for development guidelines and [CHANGELOG.md](CHANGELOG.md)
