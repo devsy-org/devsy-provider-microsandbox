@@ -44,6 +44,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - run: mise run setup:dependencies
       - run: prek run --all-files
   lint:
     name: Lint
