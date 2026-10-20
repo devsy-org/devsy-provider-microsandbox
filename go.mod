@@ -1,6 +1,6 @@
 module github.com/devsy-org/devsy-provider-microsandbox
 
-go 1.26.8
+go 1.26.10
 
 require (
 	github.com/blang/semver/v4 v4.0.0
