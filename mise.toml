@@ -9,7 +9,7 @@ locked = true
 [tools]
 go = "1.26.10"
 golangci-lint = "2.13.2"
-prek = "0.5.2"
+prek = "0.5.9"
 
 [tasks.setup]
 description = "Install dependencies and git hooks"
