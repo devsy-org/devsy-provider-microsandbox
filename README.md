@@ -68,6 +68,11 @@ mise install
 mise run test ::: lint ::: pre-commit ::: build
 ```
 
+Pull request CI verifies the pinned Linux amd64 archive digest and its exact
+executable and firmware inventory. It checks a relocated pair with the CLI,
+the Go SDK, and the adapter. This check does not start a VM or qualify
+Devsy-managed installation and removal.
+
 See [AGENTS.md](AGENTS.md) for development guidelines and [CHANGELOG.md](CHANGELOG.md)
 for release history.
 
