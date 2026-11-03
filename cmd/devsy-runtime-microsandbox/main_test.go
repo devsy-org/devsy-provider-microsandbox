@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -64,9 +65,13 @@ func (s *entrypointSuite) TestVersionAndArgumentValidation() {
 	s.Equal("devsy-runtime-microsandbox test\n", string(out))
 	for _, args := range [][]string{nil, {"unknown"}, {"serve", "extra"}} {
 		// #nosec G204 -- private locally built binary and fixed invalid argument fixtures
-		out, err = exec.Command(executable, args...).Output()
+		command := exec.Command(executable, args...)
+		var stderr bytes.Buffer
+		command.Stderr = &stderr
+		out, err = command.Output()
 		s.Error(err)
 		s.Empty(out)
+		s.Contains(stderr.String(), "runtime-check")
 	}
 }
 

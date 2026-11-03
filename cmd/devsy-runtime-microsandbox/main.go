@@ -14,11 +14,13 @@ import (
 
 var version = "dev"
 
+const runtimeUsage = "usage: devsy-runtime-microsandbox --version|serve|runtime-check"
+
 func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
 	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: devsy-runtime-microsandbox --version|serve")
+		fmt.Fprintln(os.Stderr, runtimeUsage)
 		return 1
 	}
 	switch args[0] {
@@ -32,7 +34,7 @@ func run(args []string) int {
 	case "runtime-check":
 		return runtimeCheck()
 	default:
-		fmt.Fprintln(os.Stderr, "usage: devsy-runtime-microsandbox --version|serve")
+		fmt.Fprintln(os.Stderr, runtimeUsage)
 		return 1
 	}
 }
