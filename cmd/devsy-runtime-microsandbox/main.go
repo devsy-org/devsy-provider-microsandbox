@@ -46,15 +46,8 @@ func serve() int {
 		return 1
 	}
 	if cfg.MSBPath != "" {
-		resolved, err := microsandbox.ResolveRuntime(
-			microsandbox.RuntimeConfig{MSBPath: cfg.MSBPath, LibkrunfwPath: cfg.LibkrunfwPath},
-		)
-		if err != nil {
+		if _, err := resolvePair(cfg, microsandbox.ResolveRuntime); err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
-		if resolved.MSBPath != cfg.MSBPath || resolved.LibkrunfwPath != cfg.LibkrunfwPath {
-			fmt.Fprintln(os.Stderr, "resolved runtime does not match requested pair")
 			return 1
 		}
 	}
