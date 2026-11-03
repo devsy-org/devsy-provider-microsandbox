@@ -167,7 +167,7 @@ func extractQualifiedPair(
 		want, ok := expected[header.Name]
 		require.True(t, ok)
 		require.False(t, seen[header.Name])
-		require.Equal(t, tar.TypeReg, header.Typeflag)
+		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
 		require.Empty(t, header.Linkname)
 		require.Empty(t, header.PAXRecords)
 		require.Equal(t, want, header.Size)
