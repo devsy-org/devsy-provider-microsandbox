@@ -9,6 +9,7 @@ import (
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/server"
 	sdkserver "github.com/devsy-org/devsy-runtime-sdk/server"
+	microsandbox "github.com/superradcompany/microsandbox/sdk/go"
 )
 
 var version = "dev"
@@ -28,6 +29,8 @@ func run(args []string) int {
 		return 0
 	case "serve":
 		return serve()
+	case "runtime-check":
+		return runtimeCheck()
 	default:
 		fmt.Fprintln(os.Stderr, "usage: devsy-runtime-microsandbox --version|serve")
 		return 1
@@ -40,7 +43,20 @@ func serve() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	driver, err := server.New(msb.Client{}, cfg, version)
+	if cfg.MSBPath != "" {
+		resolved, err := microsandbox.ResolveRuntime(
+			microsandbox.RuntimeConfig{MSBPath: cfg.MSBPath, LibkrunfwPath: cfg.LibkrunfwPath},
+		)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if resolved.MSBPath != cfg.MSBPath || resolved.LibkrunfwPath != cfg.LibkrunfwPath {
+			fmt.Fprintln(os.Stderr, "resolved runtime does not match requested pair")
+			return 1
+		}
+	}
+	driver, err := server.New(msb.Client{Binary: cfg.MSBPath}, cfg, version)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1

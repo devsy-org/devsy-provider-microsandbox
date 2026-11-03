@@ -12,6 +12,21 @@ type configSuite struct{ suite.Suite }
 
 func TestConfig(t *testing.T) { suite.Run(t, new(configSuite)) }
 
+func (s *configSuite) TestRuntimePair() {
+	for _, env := range []map[string]string{
+		{"MSB_PATH": "/runtime/msb"},
+		{"MSB_LIBKRUNFW_PATH": "/runtime/firmware"},
+	} {
+		_, err := Load(func(k string) string { return env[k] })
+		s.ErrorContains(err, "must be set together")
+	}
+	env := map[string]string{"MSB_PATH": "/runtime/msb", "MSB_LIBKRUNFW_PATH": "/runtime/firmware"}
+	cfg, err := Load(func(k string) string { return env[k] })
+	s.Require().NoError(err)
+	s.Equal(env["MSB_PATH"], cfg.MSBPath)
+	s.Equal(env["MSB_LIBKRUNFW_PATH"], cfg.LibkrunfwPath)
+}
+
 func (s *configSuite) TestDefaults() {
 	cfg, err := Load(func(string) string { return "" })
 	s.Require().NoError(err)

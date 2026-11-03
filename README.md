@@ -37,6 +37,28 @@ devsy provider set microsandbox -o MICROSANDBOX_CPUS=4
 See the [provider options](internal/distribution/provider.yaml.tmpl) for resource
 limits, storage, networking, and workspace mount policies.
 
+### Relocated runtime pair
+
+Set `MSB_PATH` and `MSB_LIBKRUNFW_PATH` together when the MicroSandbox
+executable and matching firmware are outside the standard runtime home:
+
+```sh
+devsy provider set microsandbox --skip-init \
+  -o MSB_PATH=/opt/microsandbox/msb \
+  -o MSB_LIBKRUNFW_PATH=/opt/microsandbox/libkrunfw.so.5.6.1
+```
+
+The adapter uses the selected executable for lifecycle commands and passes
+the same pair to the MicroSandbox Go SDK for guest execution. A partial pair
+fails instead of falling back to another installation. Without either option,
+the existing runtime discovery remains in effect.
+
+The adapter executable also accepts `runtime-check`. It resolves the pair
+through the SDK and runs a bounded version check without starting a VM.
+Successful output is a single JSON object with `schemaVersion`, `msbPath`,
+`libkrunfwPath`, `version`, and `compatible`. This check can initialize the
+SDK's native library cache, so it is not a passive inspection command.
+
 ## Development
 
 Building requires CGO and a C compiler. Install [mise](https://mise.jdx.dev), then:

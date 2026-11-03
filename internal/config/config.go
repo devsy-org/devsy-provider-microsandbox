@@ -15,6 +15,8 @@ const statPolicyOption = "MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION"
 
 // Config holds runtime defaults and the primary workspace bind-mount policy.
 type Config struct {
+	MSBPath         string
+	LibkrunfwPath   string
 	Defaults        msb.Spec
 	WorkspacePolicy msb.MountPolicy
 }
@@ -22,6 +24,8 @@ type Config struct {
 // Load reads provider options without accessing process-global environment state.
 func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
+		MSBPath:       getenv("MSB_PATH"),
+		LibkrunfwPath: getenv("MSB_LIBKRUNFW_PATH"),
 		WorkspacePolicy: msb.MountPolicy{
 			StatVirtualization: msb.StatStrict,
 			HostPermissions:    msb.HostMirror,
@@ -72,6 +76,9 @@ func loadFlags(getenv func(string) string, cfg *Config) error {
 
 // Validate rejects policy combinations that cannot preserve workspace permissions.
 func (cfg Config) Validate() error {
+	if (cfg.MSBPath == "") != (cfg.LibkrunfwPath == "") {
+		return errors.New("MSB_PATH and MSB_LIBKRUNFW_PATH must be set together")
+	}
 	switch cfg.WorkspacePolicy.StatVirtualization {
 	case msb.StatStrict, msb.StatRelaxed, msb.StatOff:
 	default:
