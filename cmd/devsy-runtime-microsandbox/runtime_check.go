@@ -16,6 +16,8 @@ import (
 	microsandbox "github.com/superradcompany/microsandbox/sdk/go"
 )
 
+var minimumManagedRuntimeVersion = semver.Version{Minor: 7, Patch: 7}
+
 type runtimeCheckResult struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	MSBPath       string `json:"msbPath"`
@@ -46,7 +48,7 @@ func checkRuntime(
 		MSBPath:       pair.MSBPath,
 		LibkrunfwPath: pair.LibkrunfwPath,
 		Version:       parsed.String(),
-		Compatible:    parsed.GTE(semver.MustParse("0.7.7")),
+		Compatible:    parsed.GTE(minimumManagedRuntimeVersion),
 	}, nil
 }
 

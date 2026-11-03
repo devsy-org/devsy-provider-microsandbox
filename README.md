@@ -59,6 +59,10 @@ Successful output is a single JSON object with `schemaVersion`, `msbPath`,
 `libkrunfwPath`, `version`, and `compatible`. This check can initialize the
 SDK's native library cache, so it is not a passive inspection command.
 
+The `compatible` field is true for MicroSandbox 0.7.7 or later. This is the
+minimum for explicit recreation and structured guest execution. Basic
+provisioning can use 0.7.2 or later.
+
 ## Development
 
 Building requires CGO and a C compiler. Install [mise](https://mise.jdx.dev), then:
