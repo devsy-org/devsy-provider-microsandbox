@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.1...v1.0.2) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/google/go-containerregistry to v0.22.1 ([#49](https://github.com/devsy-org/devsy-provider-microsandbox/issues/49)) ([2050659](https://github.com/devsy-org/devsy-provider-microsandbox/commit/20506590b5f2042d65abbe6f5572c4cb072ef26d))
+* **microsandbox:** report actionable version and inspect errors ([#46](https://github.com/devsy-org/devsy-provider-microsandbox/issues/46)) ([f950f2b](https://github.com/devsy-org/devsy-provider-microsandbox/commit/f950f2bf0a0b3d41ffda165048f04f646f4eb806))
+
 ## [1.0.1](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.0...v1.0.1) (2026-11-05)
 
 
