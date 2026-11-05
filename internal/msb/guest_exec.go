@@ -74,7 +74,6 @@ type nativeExecution struct {
 	input guestInput
 }
 
-// guestInput is the stdin capability of *microsandbox.ExecSink.
 type guestInput interface {
 	WriteCtx(context.Context, []byte) (int, error)
 	Close() error
@@ -88,9 +87,6 @@ func (e *nativeExecution) CloseInput(ctx context.Context) error {
 	return closeGuestInput(ctx, e.input)
 }
 
-// closeGuestInput delivers guest EOF. Only ExecSink.Close sends EOF; the SDK
-// treats an empty write as a no-op. Close takes no context, so cancellation
-// stops waiting and leaves the pump's kill and handle close to release it.
 func closeGuestInput(ctx context.Context, input guestInput) error {
 	done := make(chan error, 1)
 	go func() { done <- input.Close() }()
@@ -120,7 +116,6 @@ func (c Client) validateExecution(ctx context.Context, req ExecRequest) error {
 	if err != nil {
 		return err
 	}
-	// Guest execution opens the catalog through the SDK, which upgrades it.
 	_, err = RequireSupported(raw)
 	return err
 }

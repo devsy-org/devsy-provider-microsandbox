@@ -1,4 +1,3 @@
 /dist/
 *.test
 coverage.out
-/.devcontainer/
