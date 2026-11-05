@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/devsy-org/devsy-runtime-sdk v1.6.0
-	github.com/google/go-containerregistry v0.22.0
+	github.com/google/go-containerregistry v0.22.1
 	github.com/hashicorp/go-plugin v1.8.0
 	github.com/stretchr/testify v1.11.1
 	github.com/superradcompany/microsandbox/sdk/go v0.7.13
