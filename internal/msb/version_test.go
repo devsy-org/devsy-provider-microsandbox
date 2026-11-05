@@ -29,4 +29,6 @@ func (s *versionSuite) TestRequireSupportedRejectsUnparsedOutput() {
 	_, err := RequireSupported("unknown")
 	s.ErrorIs(err, ErrUnsupportedVersion)
 	s.ErrorContains(err, `unable to parse microsandbox version from "unknown"`)
+	s.ErrorContains(err, "v0.7.13")
+	s.ErrorContains(err, "msb self update")
 }

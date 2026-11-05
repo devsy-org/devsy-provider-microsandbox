@@ -64,8 +64,16 @@ func (s *clientSuite) TestFindStates() {
 			case testNotFound:
 				s.NoError(err)
 				s.Nil(info)
-			case testDenied, testInvalid:
+			case testDenied:
 				s.Error(err)
+				s.Nil(info)
+			case testInvalid:
+				s.ErrorContains(err, "parse microsandbox inspect output")
+				s.ErrorContains(err, "microsandbox 0.7.2")
+				s.ErrorContains(
+					err,
+					"https://github.com/devsy-org/devsy-provider-microsandbox/issues",
+				)
 				s.Nil(info)
 			default:
 				s.Require().NoError(err)
@@ -77,6 +85,15 @@ func (s *clientSuite) TestFindStates() {
 			}
 		})
 	}
+}
+
+func (s *clientSuite) TestInspectErrorSurvivesStalledVersionProbe() {
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", "invalid-stalled-version")
+	started := time.Now()
+	_, err := s.client.Find(context.Background(), wsName)
+	s.ErrorContains(err, "parse microsandbox inspect output")
+	s.ErrorContains(err, "unknown (version detection failed)")
+	s.Less(time.Since(started), 10*time.Second)
 }
 
 func (s *clientSuite) TestExecStreamsAndArgv() {
@@ -297,6 +314,9 @@ func recordHelper(args []string) error {
 func dispatchHelper(args []string, mode string) int {
 	switch args[0] {
 	case "--version":
+		if mode == "invalid-stalled-version" {
+			time.Sleep(time.Minute)
+		}
 		return writeHelper(os.Stdout, "microsandbox 0.7.2\n")
 	case "inspect":
 		return inspectHelper(mode)
@@ -351,7 +371,7 @@ func inspectHelper(mode string) int {
 		_, _ = io.WriteString(os.Stderr, mode)
 		return 1
 	}
-	if mode == testInvalid {
+	if mode == testInvalid || mode == "invalid-stalled-version" {
 		_, _ = io.WriteString(os.Stdout, "not json")
 		return 0
 	}
