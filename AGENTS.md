@@ -69,4 +69,4 @@ and an explicitly empty body; never copy the PR description or commit list into
 the merged commit. Apply the same rule to automated release PR merges and verify
 the resulting commit message.
 
-Release Please creates a draft release and tag. Build and verify all native assets from the tagged commit before publishing the draft as latest. Rerun the Release assets workflow with the tag to recover a failed draft. Never publish a draft with incomplete assets.
+Release Please creates a draft release and tag. Build and verify all native assets from the tagged commit before publishing. Publish a release behind the current latest without marking it latest. Rerun the Release assets workflow with the tag to recover a failure. For an already published release, download its assets and verify their checksums and regenerated provider manifest without uploading or publishing again. Never publish a draft with incomplete assets.
