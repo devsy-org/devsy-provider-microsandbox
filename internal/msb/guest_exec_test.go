@@ -205,3 +205,46 @@ func (s *guestSuite) TestCleanupFailureDoesNotReturnGuestCode() {
 	s.Zero(code)
 	s.True(g.closed)
 }
+
+type sinkFixture struct {
+	writes  int
+	closed  chan struct{}
+	release chan struct{}
+}
+
+func (f *sinkFixture) WriteCtx(context.Context, []byte) (int, error) {
+	f.writes++
+	return 0, nil
+}
+
+func (f *sinkFixture) Close() error {
+	close(f.closed)
+	if f.release != nil {
+		<-f.release
+	}
+	return nil
+}
+
+func (s *guestSuite) TestInputEOFUsesSinkClose() {
+	sink := &sinkFixture{closed: make(chan struct{})}
+	execution := &nativeExecution{input: sink}
+	s.Require().NoError(execution.CloseInput(context.Background()))
+	s.Zero(sink.writes)
+	select {
+	case <-sink.closed:
+	default:
+		s.Fail("guest EOF must close the stdin sink")
+	}
+}
+
+func (s *guestSuite) TestCancellationReleasesBlockedInputEOF() {
+	sink := &sinkFixture{closed: make(chan struct{}), release: make(chan struct{})}
+	defer close(sink.release)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	failure := errors.New("stopped")
+	go func() {
+		<-sink.closed
+		cancel(failure)
+	}()
+	s.ErrorIs(closeGuestInput(ctx, sink), failure)
+}

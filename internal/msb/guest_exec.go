@@ -8,12 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blang/semver/v4"
 	microsandbox "github.com/superradcompany/microsandbox/sdk/go"
 )
-
-// ErrExecUnsupported identifies an installation too old for structured execution.
-var ErrExecUnsupported = errors.New("structured MicroSandbox execution requires msb 0.7.7 or newer")
 
 // Execute returns only authoritative guest completion; backend errors never carry a guest code.
 // Like Exec, it owns and closes the request's input.
@@ -75,7 +71,12 @@ type guestExecution interface {
 
 type nativeExecution struct {
 	*microsandbox.ExecHandle
-	input *microsandbox.ExecSink
+	input guestInput
+}
+
+type guestInput interface {
+	WriteCtx(context.Context, []byte) (int, error)
+	Close() error
 }
 
 func (e *nativeExecution) Write(ctx context.Context, data []byte) (int, error) {
@@ -83,10 +84,18 @@ func (e *nativeExecution) Write(ctx context.Context, data []byte) (int, error) {
 }
 
 func (e *nativeExecution) CloseInput(ctx context.Context) error {
-	// ExecStdin with an empty payload is guest EOF, the same wire message as
-	// ExecSink.Close. WriteCtx also makes EOF delivery cancellable.
-	_, err := e.input.WriteCtx(ctx, nil)
-	return err
+	return closeGuestInput(ctx, e.input)
+}
+
+func closeGuestInput(ctx context.Context, input guestInput) error {
+	done := make(chan error, 1)
+	go func() { done <- input.Close() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	}
 }
 
 type guestPump struct {
@@ -107,14 +116,8 @@ func (c Client) validateExecution(ctx context.Context, req ExecRequest) error {
 	if err != nil {
 		return err
 	}
-	version, err := ParseVersion(raw)
-	if err != nil {
-		return err
-	}
-	if version.LT(semver.Version{Major: 0, Minor: 7, Patch: 7}) {
-		return ErrExecUnsupported
-	}
-	return nil
+	_, err = RequireSupported(raw)
+	return err
 }
 
 func pumpGuest(

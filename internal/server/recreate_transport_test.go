@@ -55,7 +55,6 @@ func (s *runtimeSuite) TestRecreatePermissionUsesRealWireRequests() {
 	s.Equal(
 		[]string{
 			versionCall,
-			versionCall,
 			findCall,
 			recreatePrepareCall,
 			recreateImportCall,
@@ -90,7 +89,6 @@ func (s *runtimeSuite) TestRecreateWireRequestNeedsNoPriorInfo() {
 	s.True(s.client.created.AllowRecreate)
 	s.Equal(
 		[]string{
-			versionCall,
 			versionCall,
 			findCall,
 			recreatePrepareCall,

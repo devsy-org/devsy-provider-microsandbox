@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/blang/semver/v4"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/config"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
 	"github.com/devsy-org/devsy-runtime-sdk/runtimev1"
@@ -106,7 +105,6 @@ func (r *Runtime) Info(
 	}, nil
 }
 
-// Preflight checks installation without gating existing workspace operations on version.
 func (r *Runtime) Preflight(
 	ctx context.Context,
 	_ *runtimev1.PreflightRequest,
@@ -127,7 +125,6 @@ func (r *Runtime) Preflight(
 	return &runtimev1.PreflightResponse{}, nil
 }
 
-// ProvisioningPreflight scopes the ownership version gate to create-time policy.
 func (r *Runtime) ProvisioningPreflight(
 	ctx context.Context,
 	_ *runtimev1.ProvisioningPreflightRequest,
@@ -135,29 +132,22 @@ func (r *Runtime) ProvisioningPreflight(
 	if err := ctx.Err(); err != nil {
 		return nil, backendError(ctx, err)
 	}
-	if r.config.WorkspacePolicy.StatVirtualization == msb.StatOff {
-		return &runtimev1.ProvisioningPreflightResponse{}, nil
-	}
 	raw, err := r.client.Version(ctx)
 	if err != nil {
 		return nil, backendError(ctx, err)
 	}
-	version, err := msb.ParseVersion(raw)
-	if err != nil {
-		return nil, runtimeError(
-			codes.FailedPrecondition,
-			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
-			err.Error(),
-		)
-	}
-	if version.LT(semver.MustParse("0.7.2")) {
-		return nil, runtimeError(
-			codes.FailedPrecondition,
-			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
-			"MicroSandbox v0.7.2 or newer is required for workspace ownership synchronization; update with msb self update",
-		)
+	if _, err := msb.RequireSupported(raw); err != nil {
+		return nil, incompatibleVersion(err)
 	}
 	return &runtimev1.ProvisioningPreflightResponse{}, nil
+}
+
+func incompatibleVersion(err error) error {
+	return runtimeError(
+		codes.FailedPrecondition,
+		runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
+		err.Error(),
+	)
 }
 
 // Find distinguishes an absent workspace from an invocation or permission failure.
@@ -351,11 +341,6 @@ func (r *Runtime) requireCreationPermission(
 	); err != nil {
 		return err
 	}
-	if allowRecreate {
-		if err := r.requireReplacementVersion(ctx); err != nil {
-			return err
-		}
-	}
 	info, err := r.find(ctx, id)
 	if err != nil {
 		return err
@@ -365,30 +350,6 @@ func (r *Runtime) requireCreationPermission(
 			codes.AlreadyExists,
 			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_ALREADY_EXISTS,
 			"workspace already exists; replacement requires explicit authorization",
-		)
-	}
-	return nil
-}
-
-// Recreation safety is validated against the pinned v0.7.7 effective-config contract.
-func (r *Runtime) requireReplacementVersion(ctx context.Context) error {
-	raw, err := r.client.Version(ctx)
-	if err != nil {
-		return backendError(ctx, err)
-	}
-	version, err := msb.ParseVersion(raw)
-	if err != nil {
-		return runtimeError(
-			codes.FailedPrecondition,
-			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
-			err.Error(),
-		)
-	}
-	if version.LT(semver.MustParse("0.7.7")) {
-		return runtimeError(
-			codes.FailedPrecondition,
-			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_INCOMPATIBLE_VERSION,
-			"MicroSandbox v0.7.7 or newer is required for explicit recreation; update with msb self update",
 		)
 	}
 	return nil

@@ -27,20 +27,20 @@ func TestRuntimeCheck(t *testing.T) {
 	}
 	result, err := checkRuntime(cfg, resolve, func(path string) (string, error) {
 		require.Equal(t, cfg.MSBPath, path)
-		return "msb 0.7.7", nil
+		return "msb 0.7.13", nil
 	})
 	require.NoError(t, err)
 	data, err := json.Marshal(result)
 	require.NoError(t, err)
 	require.JSONEq(
 		t,
-		`{"schemaVersion":1,"msbPath":"/runtime/msb","libkrunfwPath":"/runtime/fw","version":"0.7.7","compatible":true}`,
+		`{"schemaVersion":1,"msbPath":"/runtime/msb","libkrunfwPath":"/runtime/fw","version":"0.7.13","compatible":true}`,
 		string(data),
 	)
 	result, err = checkRuntime(
 		cfg,
 		resolve,
-		func(string) (string, error) { return "msb 0.7.6", nil },
+		func(string) (string, error) { return "msb 0.7.12", nil },
 	)
 	require.NoError(t, err)
 	require.False(t, result.Compatible)

@@ -10,13 +10,10 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/blang/semver/v4"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/config"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
 	microsandbox "github.com/superradcompany/microsandbox/sdk/go"
 )
-
-var minimumManagedRuntimeVersion = semver.Version{Minor: 7, Patch: 7}
 
 type runtimeCheckResult struct {
 	SchemaVersion int    `json:"schemaVersion"`
@@ -48,7 +45,7 @@ func checkRuntime(
 		MSBPath:       pair.MSBPath,
 		LibkrunfwPath: pair.LibkrunfwPath,
 		Version:       parsed.String(),
-		Compatible:    parsed.GTE(minimumManagedRuntimeVersion),
+		Compatible:    parsed.GTE(msb.MinimumVersion),
 	}, nil
 }
 
