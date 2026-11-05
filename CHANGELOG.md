@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.11...v0.1.12) (2026-11-05)
+
+
+### Features
+
+* **microsandbox:** bind explicit runtime pair and check compatibility ([#35](https://github.com/devsy-org/devsy-provider-microsandbox/issues/35)) ([3ca20a4](https://github.com/devsy-org/devsy-provider-microsandbox/commit/3ca20a4af71747631a1b15b18a7c537ba1c8c208))
+
 ## [0.1.11](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.10...v0.1.11) (2026-10-16)
 
 
