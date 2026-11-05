@@ -55,7 +55,7 @@ jobs:
           binary="dist/devsy-runtime-microsandbox-$TARGET_OS-$TARGET_ARCH$SUFFIX"
           go build -trimpath -ldflags "-X main.version=$VERSION" -o "$binary" ./cmd/devsy-runtime-microsandbox
           test "$("./$binary" --version)" = "devsy-runtime-microsandbox $VERSION"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: runtime-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*
@@ -107,7 +107,7 @@ jobs:
           go build -o "$RUNNER_TEMP/devsy" .
           "$RUNNER_TEMP/devsy" provider add --use=false microsandbox
           "$RUNNER_TEMP/devsy" provider add --use=false --name microsandbox-external "$GITHUB_WORKSPACE/dist/provider.yaml"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: provider-release
           path: dist/*
