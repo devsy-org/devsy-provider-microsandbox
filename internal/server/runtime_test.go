@@ -70,6 +70,7 @@ func (s *runtimeSuite) TestPreflightVersionScope() {
 		&runtimev1.ProvisioningPreflightRequest{},
 	)
 	s.Equal(codes.FailedPrecondition, status.Code(err))
+	// The catalog gate applies regardless of workspace mount policy.
 	s.runtime.config.WorkspacePolicy = msb.MountPolicy{
 		StatVirtualization: msb.StatOff,
 		HostPermissions:    msb.HostPrivate,
