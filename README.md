@@ -8,11 +8,18 @@ Run [Devsy](https://github.com/devsy-org/devsy) workspaces in hardware-isolated
 Releases include provider binaries for Linux amd64/arm64, macOS arm64
 (Apple Silicon), and Windows amd64.
 
-Install Devsy and the official MicroSandbox CLI. Basic provisioning supports
-0.7.2+; explicit recreation and structured guest execution require 0.7.7+.
+Install Devsy and the official MicroSandbox CLI, version 0.7.13 or later.
 Follow MicroSandbox's installation instructions for your host and ensure
 `msb --version` works in the environment running Devsy. Docker is needed for
 image builds.
+
+The provider's embedded MicroSandbox SDK upgrades the MicroSandbox database
+(`MSB_HOME`, by default `~/.microsandbox`) when it first starts a workspace.
+Older `msb` releases refuse the upgraded database, so the provider rejects
+`msb` versions below 0.7.13 before creating a workspace or running commands
+in one. Conversely, provider releases built against an older SDK cannot run
+commands once `msb` 0.7.13 has upgraded the database, so update `msb` and the
+provider together.
 
 Install the latest provider release and start a workspace:
 
@@ -59,9 +66,8 @@ Successful output is a single JSON object with `schemaVersion`, `msbPath`,
 `libkrunfwPath`, `version`, and `compatible`. This check can initialize the
 SDK's native library cache, so it is not a passive inspection command.
 
-The `compatible` field is true for MicroSandbox 0.7.7 or later. This is the
-minimum for explicit recreation and structured guest execution. Basic
-provisioning can use 0.7.2 or later.
+The `compatible` field is true for MicroSandbox 0.7.13 or later, the minimum
+for every provider operation that creates a workspace or runs commands in it.
 
 ## Development
 

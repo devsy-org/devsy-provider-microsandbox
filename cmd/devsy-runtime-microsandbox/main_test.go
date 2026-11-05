@@ -92,17 +92,17 @@ func (s *entrypointSuite) TestRealPluginHandshakeAndLogs() {
 }
 
 func (s *entrypointSuite) TestRealPluginRejectsOldExecutionBackend() {
+	s.T().Setenv("DEVSY_MSB_ENTRYPOINT_VERSION", "0.7.12")
 	client := s.pluginClient()
 	stream, err := client.Exec(s.ctx())
 	s.Require().NoError(err)
 	s.Require().NoError(stream.Send(execStart("echo")))
 	_, err = stream.Recv()
-	s.Equal(codes.Unimplemented, status.Code(err))
-	s.ErrorContains(err, "requires msb 0.7.7")
+	s.Equal(codes.FailedPrecondition, status.Code(err))
+	s.ErrorContains(err, "MicroSandbox v0.7.13 or newer is required; found v0.7.12")
 }
 
 func (s *entrypointSuite) TestRealPluginNativeBackendFailure() {
-	s.T().Setenv("DEVSY_MSB_ENTRYPOINT_VERSION", "0.7.7")
 	client := s.pluginClient()
 	stream, err := client.Exec(s.ctx())
 	s.Require().NoError(err)
@@ -233,5 +233,5 @@ func fixtureVersion() string {
 	if version := os.Getenv("DEVSY_MSB_ENTRYPOINT_VERSION"); version != "" {
 		return version
 	}
-	return "0.7.2"
+	return "0.7.13"
 }

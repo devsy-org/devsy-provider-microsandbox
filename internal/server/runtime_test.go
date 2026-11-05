@@ -44,7 +44,7 @@ func TestRuntime(t *testing.T) { suite.Run(t, new(runtimeSuite)) }
 func (s *runtimeSuite) SetupTest() {
 	cfg, err := config.Load(func(string) string { return "" })
 	s.Require().NoError(err)
-	s.client = &fakeClient{version: "msb 0.7.2"}
+	s.client = &fakeClient{version: recreateRuntimeVersion}
 	s.runtime, err = New(s.client, cfg, "test")
 	s.Require().NoError(err)
 	s.request = &runtimev1.RunImageRequest{
@@ -70,17 +70,24 @@ func (s *runtimeSuite) TestPreflightVersionScope() {
 		&runtimev1.ProvisioningPreflightRequest{},
 	)
 	s.Equal(codes.FailedPrecondition, status.Code(err))
+	// The catalog gate applies regardless of workspace mount policy.
 	s.runtime.config.WorkspacePolicy = msb.MountPolicy{
 		StatVirtualization: msb.StatOff,
 		HostPermissions:    msb.HostPrivate,
 	}
-	s.client.calls = nil
+	s.client.version = "msb 0.7.12"
+	_, err = s.runtime.ProvisioningPreflight(
+		context.Background(),
+		&runtimev1.ProvisioningPreflightRequest{},
+	)
+	s.Equal(codes.FailedPrecondition, status.Code(err))
+	s.ErrorContains(err, "MicroSandbox v0.7.13 or newer is required; found v0.7.12")
+	s.client.version = "msb 0.7.13"
 	_, err = s.runtime.ProvisioningPreflight(
 		context.Background(),
 		&runtimev1.ProvisioningPreflightRequest{},
 	)
 	s.NoError(err)
-	s.Empty(s.client.calls)
 }
 
 func (s *runtimeSuite) TestInfo() {

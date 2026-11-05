@@ -25,11 +25,11 @@ import (
 
 const (
 	qualifiedArchiveURL = "https://github.com/superradcompany/microsandbox/releases/download/" +
-		"v0.7.7/microsandbox-linux-x86_64.tar.gz"
-	qualifiedArchiveSHA256 = "b3cc4a5e3f52dfdd938a6f67ac4a9a959ddfe304bab56de4964044b8613f01bb"
-	qualifiedArchiveBytes  = 28152302
+		"v0.7.13/microsandbox-linux-x86_64.tar.gz"
+	qualifiedArchiveSHA256 = "c41aeefc050e97f42cd55ce55cc139efc13c6ee2dc371e8d30c325a305a5c3b1"
+	qualifiedArchiveBytes  = 30542710
 	qualifiedExpandedBytes = 75 << 20
-	qualifiedMSBBytes      = 48513720
+	qualifiedMSBBytes      = 54239160
 	qualifiedMSBName       = "msb"
 	qualifiedFirmwareBytes = 21628880
 	qualifiedFirmwareName  = "libkrunfw.so.5.6.1"
@@ -87,7 +87,7 @@ func verifyQualifiedRuntime(t *testing.T, paths qualifiedRuntimePaths) {
 	t.Setenv("MSB_LIBKRUNFW_PATH", paths.firmware)
 	version, err := probeVersion(paths.msb)
 	require.NoError(t, err)
-	require.Contains(t, []string{"msb 0.7.7", "microsandbox 0.7.7"}, strings.TrimSpace(version))
+	require.Contains(t, []string{"msb 0.7.13", "microsandbox 0.7.13"}, strings.TrimSpace(version))
 	pair, err := microsandbox.ResolveRuntime(microsandbox.RuntimeConfig{
 		Home: paths.home, MSBPath: paths.msb, LibkrunfwPath: paths.firmware,
 	})
@@ -103,7 +103,7 @@ func verifyQualifiedRuntime(t *testing.T, paths qualifiedRuntimePaths) {
 	require.ErrorIs(t, decoder.Decode(new(any)), io.EOF)
 	require.Equal(t, runtimeCheckResult{
 		SchemaVersion: 1, MSBPath: paths.msb, LibkrunfwPath: paths.firmware,
-		Version: "0.7.7", Compatible: true,
+		Version: "0.7.13", Compatible: true,
 	}, result)
 }
 

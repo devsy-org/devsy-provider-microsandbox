@@ -13,16 +13,16 @@ import (
 )
 
 const (
-	recreateRuntimeVersion   = "msb 0.7.7"
-	recreateOwnershipVersion = "msb 0.7.2"
-	recreateCreateCall       = "create"
-	recreateInvalidImage     = "image"
-	recreatePrepareCall      = "prepare"
-	recreateImportCall       = "import"
+	recreateRuntimeVersion = "msb 0.7.13"
+	recreateOldVersion     = "msb 0.7.12"
+	recreateCreateCall     = "create"
+	recreateInvalidImage   = "image"
+	recreatePrepareCall    = "prepare"
+	recreateImportCall     = "import"
 )
 
 func (s *runtimeSuite) TestRecreateInfoSelectionHasNoSessionState() {
-	for _, version := range []string{recreateOwnershipVersion, recreateRuntimeVersion, "unparsed version"} {
+	for _, version := range []string{recreateOldVersion, recreateRuntimeVersion, "unparsed version"} {
 		s.client.version = version
 		for _, request := range []*runtimev1.InfoRequest{
 			nil, {}, {SupportsRecreateOnRun: true}, {}, {SupportsRecreateOnRun: true},
@@ -81,7 +81,6 @@ func (s *runtimeSuite) TestRecreateTrueForwardsWithoutInfoOrExplicitTeardown() {
 			s.Equal(
 				[]string{
 					versionCall,
-					versionCall,
 					findCall,
 					recreatePrepareCall,
 					recreateImportCall,
@@ -115,7 +114,7 @@ func (s *runtimeSuite) TestFreshRunOverridesDefaultRecreatePermission() {
 }
 
 func (s *runtimeSuite) TestRecreateVersionGateCannotBeBypassedByOffPolicy() {
-	for _, version := range []string{recreateOwnershipVersion, "msb 0.7.6", "msb 0.7.7-rc.1", "unknown"} {
+	for _, version := range []string{"msb 0.7.2", recreateOldVersion, "msb 0.7.13-rc.1", "unknown"} {
 		s.Run(version, func() {
 			s.SetupTest()
 			s.client.version = version
@@ -209,7 +208,7 @@ func (s *runtimeSuite) TestRecreateInvalidOwnerPreservesTarget() {
 	_, err := s.runtime.RunImage(context.Background(), s.request)
 	s.Equal(codes.FailedPrecondition, status.Code(err))
 	s.Equal(before, *s.client.info)
-	s.Equal([]string{versionCall, versionCall, findCall, recreatePrepareCall}, s.client.calls)
+	s.Equal([]string{versionCall, findCall, recreatePrepareCall}, s.client.calls)
 }
 
 func (s *runtimeSuite) TestRecreateCanceledRequestPreservesTarget() {

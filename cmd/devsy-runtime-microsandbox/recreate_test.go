@@ -30,7 +30,6 @@ func (s *entrypointSuite) TestRecreatePermissionIsPerPluginProcess() {
 
 	firstRecord := filepath.Join(dir, "info-then-denied.jsonl")
 	first := s.pluginClientWithEnv(
-		"DEVSY_MSB_ENTRYPOINT_VERSION=0.7.7",
 		"DEVSY_MSB_ENTRYPOINT_EXISTING=1",
 		fixtureRecordEnv+"="+firstRecord,
 	)
@@ -45,7 +44,6 @@ func (s *entrypointSuite) TestRecreatePermissionIsPerPluginProcess() {
 	// explicit field on this request alone must authorize the replacement.
 	allowedRecord := filepath.Join(dir, "fresh-allowed.jsonl")
 	allowed := s.pluginClientWithEnv(
-		"DEVSY_MSB_ENTRYPOINT_VERSION=0.7.7",
 		"DEVSY_MSB_ENTRYPOINT_EXISTING=1",
 		fixtureRecordEnv+"="+allowedRecord,
 	)
@@ -65,7 +63,6 @@ func (s *entrypointSuite) TestRecreatePermissionIsPerPluginProcess() {
 	// A third fresh process gets no permission from either earlier process.
 	deniedRecord := filepath.Join(dir, "fresh-denied.jsonl")
 	denied := s.pluginClientWithEnv(
-		"DEVSY_MSB_ENTRYPOINT_VERSION=0.7.7",
 		"DEVSY_MSB_ENTRYPOINT_EXISTING=1",
 		fixtureRecordEnv+"="+deniedRecord,
 	)

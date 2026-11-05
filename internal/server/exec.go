@@ -100,12 +100,8 @@ func (r *Runtime) execute(
 	if cause := context.Cause(ctx); cause != nil {
 		return cause
 	}
-	if errors.Is(err, msb.ErrExecUnsupported) {
-		return runtimeError(
-			codes.Unimplemented,
-			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_UNSUPPORTED,
-			err.Error(),
-		)
+	if errors.Is(err, msb.ErrUnsupportedVersion) {
+		return incompatibleVersion(err)
 	}
 	if err != nil {
 		return backendError(stream.Context(), err)
