@@ -105,6 +105,7 @@ func (r *Runtime) Info(
 	}, nil
 }
 
+// Preflight checks installation without gating existing workspace operations on version.
 func (r *Runtime) Preflight(
 	ctx context.Context,
 	_ *runtimev1.PreflightRequest,
@@ -125,6 +126,8 @@ func (r *Runtime) Preflight(
 	return &runtimev1.PreflightResponse{}, nil
 }
 
+// ProvisioningPreflight rejects msb releases that cannot share the catalog
+// the SDK upgrades when the new workspace's agent is injected.
 func (r *Runtime) ProvisioningPreflight(
 	ctx context.Context,
 	_ *runtimev1.ProvisioningPreflightRequest,
