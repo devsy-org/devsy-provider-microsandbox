@@ -1,32 +1,90 @@
 name: Release assets
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      expected_sha:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Draft release tag
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
-  group: release-assets-${{ github.event.release.tag_name }}
+  group: release-assets
   cancel-in-progress: false
 jobs:
-  distribution:
-    uses: ./.github/workflows/distribution.yml
-    with:
-      version: ${{ github.event.release.tag_name }}
-  publish:
-    name: Publish verified provider assets
-    needs: distribution
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  resolve:
     permissions:
       contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
     steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
-        with:
-          name: provider-release
-          path: dist
-      - name: Upload the complete verified release
+      - id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" dist/* --clobber
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft | select(. == true)' | grep -qx true
+          sha="$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+            [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+            test "$sha" = "$EXPECTED_SHA"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+  distribution:
+    needs: resolve
+    uses: ./.github/workflows/distribution.yml
+    with:
+      version: ${{ inputs.tag }}
+      ref: ${{ needs.resolve.outputs.sha }}
+  publish:
+    name: Publish verified provider assets
+    needs: [resolve, distribution]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: provider-release-${{ inputs.tag }}
+          path: dist
+      - name: Verify and publish the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          cd dist
+          sha256sum --check checksums.txt
+          test -s provider.yaml
+          gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft | select(. == true)' | grep -qx true
+          test "$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)" = "$EXPECTED_SHA"
+          gh release upload "$RELEASE_TAG" ./* --clobber
+          response="$(mktemp)"
+          trap 'rm -f "$response" "$response.err"' EXIT
+          if gh api "repos/$GH_REPO/releases/latest" > "$response" 2> "$response.err"; then
+            latest_tag="$(jq -er '.tag_name' "$response")"
+            status="$(gh api "repos/$GH_REPO/compare/$latest_tag...$EXPECTED_SHA" --jq .status)"
+            [[ "$status" == ahead || "$status" == identical ]]
+          else
+            cat "$response.err" >&2
+            grep -q 'HTTP 404' "$response.err"
+          fi
+          rm -f "$response.err"
+          gh release edit "$RELEASE_TAG" --draft=false --latest

@@ -89,3 +89,5 @@ for release history.
 ## License
 
 [MPL-2.0](LICENSE).
+
+Release Please creates a draft and its tag after a release PR merges. Native builds and provider manifest checks run for the tagged commit before assets are uploaded and the release is published as latest. If a build or upload fails, rerun the Release assets workflow with the draft tag.
