@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.0...v1.0.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **lint:** restore doc comments and exported rule checks ([#42](https://github.com/devsy-org/devsy-provider-microsandbox/issues/42)) ([2387018](https://github.com/devsy-org/devsy-provider-microsandbox/commit/238701862448fec1dfeafeed276a166b0567ddcb))
+
 ## [1.0.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.12...v1.0.0) (2026-11-05)
 
 
