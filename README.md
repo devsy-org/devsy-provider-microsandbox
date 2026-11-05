@@ -93,3 +93,5 @@ for release history.
 ## License
 
 [MPL-2.0](LICENSE).
+
+Release Please creates a draft and its tag after a release PR merges. Native builds and provider manifest checks run for the tagged commit before assets are uploaded. A release behind the current latest is published without becoming latest. Rerun the Release assets workflow with the tag after a failure. For an already published release, the workflow downloads its assets and verifies their checksums and regenerated provider manifest without uploading or publishing again.

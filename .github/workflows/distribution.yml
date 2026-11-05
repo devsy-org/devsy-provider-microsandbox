@@ -5,6 +5,9 @@ on:
       version:
         required: true
         type: string
+      ref:
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -33,10 +36,11 @@ jobs:
             arch: amd64
             suffix: '.exe'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: go.mod
       - name: Build and test on the native platform
@@ -55,9 +59,9 @@ jobs:
           binary="dist/devsy-runtime-microsandbox-$TARGET_OS-$TARGET_ARCH$SUFFIX"
           go build -trimpath -ldflags "-X main.version=$VERSION" -o "$binary" ./cmd/devsy-runtime-microsandbox
           test "$("./$binary" --version)" = "devsy-runtime-microsandbox $VERSION"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: runtime-${{ matrix.os }}-${{ matrix.arch }}
+          name: runtime-${{ inputs.version }}-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/*
           if-no-files-found: error
   manifest:
@@ -66,16 +70,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: provider
           persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
           go-version-file: provider/go.mod
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: runtime-*
+          pattern: runtime-${{ inputs.version }}-*
           path: dist
           merge-multiple: true
       - name: Generate pinned manifest
@@ -90,10 +95,9 @@ jobs:
       - name: Check the complete artifact set
         working-directory: dist
         run: sha256sum --check checksums.txt
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: devsy-org/devsy
-          # Host external-driver support, pinned for repeatable provider releases.
           ref: 017e389afcd23132ce45277c387a57440a880e7f
           path: devsy
           persist-credentials: false
@@ -107,8 +111,8 @@ jobs:
           go build -o "$RUNNER_TEMP/devsy" .
           "$RUNNER_TEMP/devsy" provider add --use=false microsandbox
           "$RUNNER_TEMP/devsy" provider add --use=false --name microsandbox-external "$GITHUB_WORKSPACE/dist/provider.yaml"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: provider-release
+          name: provider-release-${{ inputs.version }}
           path: dist/*
           if-no-files-found: error
