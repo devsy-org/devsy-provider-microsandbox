@@ -35,6 +35,24 @@ jobs:
             echo 'Serving without the plugin handshake must be rejected.' >&2
             exit 1
           fi
+  relocation:
+    name: Pinned runtime relocation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - name: Build candidate adapter
+        run: go build -ldflags '-X main.version=ci' -o "$RUNNER_TEMP/devsy-runtime-microsandbox" ./cmd/devsy-runtime-microsandbox
+      - name: Verify pinned archive and relocated runtime
+        env:
+          DEVSY_QUALIFY_RUNTIME: "1"
+          DEVSY_ADAPTER_BINARY: ${{ runner.temp }}/devsy-runtime-microsandbox
+        run: go test -count=1 -timeout 10m ./cmd/devsy-runtime-microsandbox -run '^TestRelocatedPinnedRuntime$'
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
@@ -87,7 +105,7 @@ jobs:
   ci-success:
     name: CI Success
     if: always()
-    needs: [test, pre-commit, lint, distribution]
+    needs: [test, relocation, pre-commit, lint, distribution]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

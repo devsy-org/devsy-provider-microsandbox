@@ -6,6 +6,8 @@ description: |-
   Devsy on MicroSandbox
 optionGroups:
   - options:
+      - MSB_PATH
+      - MSB_LIBKRUNFW_PATH
       - MICROSANDBOX_MEMORY
       - MICROSANDBOX_CPUS
       - MICROSANDBOX_MAX_MEMORY
@@ -18,6 +20,10 @@ optionGroups:
       - INACTIVITY_TIMEOUT
     name: "Advanced Options"
 options:
+  MSB_PATH:
+    description: "Path to the MicroSandbox executable. Set together with MSB_LIBKRUNFW_PATH."
+  MSB_LIBKRUNFW_PATH:
+    description: "Path to the MicroSandbox firmware library. Set together with MSB_PATH."
   MICROSANDBOX_MEMORY:
     description: "Guest memory limit in MiB. Empty uses the runtime default."
     default: "2048"
