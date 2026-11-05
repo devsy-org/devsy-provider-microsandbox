@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Client uses the CLI for lifecycle and logs and the SDK for guest execution.
@@ -33,7 +34,9 @@ func (c Client) EnsureInstalled(_ context.Context) error {
 // Version returns the unparsed msb version output.
 func (c Client) Version(ctx context.Context) (string, error) {
 	// #nosec G204 -- args are a resolved binary path and fixed version command
-	out, err := exec.CommandContext(ctx, c.binary(), "--version").CombinedOutput()
+	cmd := exec.CommandContext(ctx, c.binary(), "--version")
+	cmd.WaitDelay = time.Second
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf(
 			"get microsandbox version: %s: %w",
@@ -69,7 +72,22 @@ func (c Client) Find(ctx context.Context, sandbox string) (*Info, error) {
 		}
 		return nil, fmt.Errorf("inspect microsandbox VM %q: %w", sandbox, err)
 	}
-	return parseInfo(out)
+	info, err := parseInfo(out)
+	if err != nil {
+		versionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		version, versionErr := c.Version(versionCtx)
+		if versionErr != nil {
+			version = "unknown (version detection failed)"
+		}
+		return nil, fmt.Errorf(
+			"%w; msb version %s; report incompatible inspect output at "+
+				"https://github.com/devsy-org/devsy-provider-microsandbox/issues",
+			err,
+			version,
+		)
+	}
+	return info, nil
 }
 
 // Start resumes an existing VM.

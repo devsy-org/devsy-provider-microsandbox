@@ -21,6 +21,10 @@ in one. Conversely, provider releases built against an older SDK cannot run
 commands once `msb` 0.7.13 has upgraded the database, so update `msb` and the
 provider together.
 
+If the runtime version cannot be recognized, update it with `msb self update`.
+If inspect output cannot be parsed, the provider reports the runtime version
+and a link for reporting the incompatibility.
+
 Install the latest provider release and start a workspace:
 
 ```sh

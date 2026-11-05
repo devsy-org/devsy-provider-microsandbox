@@ -41,7 +41,10 @@ func ParseVersion(output string) (semver.Version, error) {
 func RequireSupported(output string) (semver.Version, error) {
 	version, err := ParseVersion(output)
 	if err != nil {
-		return semver.Version{}, errors.Join(ErrUnsupportedVersion, err)
+		return semver.Version{}, fmt.Errorf(
+			"%w; update with msb self update",
+			errors.Join(ErrUnsupportedVersion, err),
+		)
 	}
 	if version.LT(MinimumVersion) {
 		return version, fmt.Errorf(

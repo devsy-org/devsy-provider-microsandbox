@@ -1,5 +1,12 @@
 package msb
 
+func (s *clientSuite) TestInspectionRequiresIdentityAndStatus() {
+	for _, data := range []string{`{}`, `{"name":"test"}`, `{"status":"running"}`} {
+		_, err := parseInfo([]byte(data))
+		s.ErrorContains(err, "name and status are required")
+	}
+}
+
 func (s *clientSuite) TestStoppedInspectionRetainsSavedConfiguration() {
 	info, err := parseInfo(
 		[]byte(
@@ -25,7 +32,7 @@ func (s *clientSuite) TestStoppedInspectionRetainsSavedConfiguration() {
 func (s *clientSuite) TestActiveInspectionTakesPrecedence() {
 	info, err := parseInfo(
 		[]byte(
-			`{"name":"running","status":"Running",
+			`{"name":"running","status":"Running","future_field":{"value":1},
  "active_config":{"labels":{"developer":"active"}},"config":{"labels":{"developer":"saved"}}}`,
 		),
 	)

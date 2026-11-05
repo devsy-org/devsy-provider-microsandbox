@@ -2,6 +2,7 @@ package msb
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -29,6 +30,9 @@ func parseInfo(data []byte) (*Info, error) {
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse microsandbox inspect output: %w", err)
+	}
+	if raw.Name == "" || raw.Status == "" {
+		return nil, errors.New("parse microsandbox inspect output: name and status are required")
 	}
 	current := raw.ActiveConfig
 	if current == nil {
