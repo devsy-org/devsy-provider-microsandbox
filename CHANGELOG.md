@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.12...v1.0.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **microsandbox:** support MicroSandbox 0.7.13 ([#37](https://github.com/devsy-org/devsy-provider-microsandbox/issues/37))
+
+### Features
+
+* **microsandbox:** support MicroSandbox 0.7.13 ([#37](https://github.com/devsy-org/devsy-provider-microsandbox/issues/37)) ([dda4168](https://github.com/devsy-org/devsy-provider-microsandbox/commit/dda4168a8cd40ce8d15ef5367e7d5ec017e1c857))
+
 ## [0.1.12](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v0.1.11...v0.1.12) (2026-11-05)
 
 
