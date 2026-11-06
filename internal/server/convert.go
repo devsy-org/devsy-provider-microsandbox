@@ -245,7 +245,11 @@ func mountByType(wire *runtimev1.Mount) (msb.Mount, error) {
 	case runtimev1.MountType_MOUNT_TYPE_TMPFS:
 		mount.Tmpfs = true
 	default:
-		return msb.Mount{}, invalidArgument("unsupported mount type")
+		return msb.Mount{}, runtimeError(
+			codes.Unimplemented,
+			runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_UNSUPPORTED,
+			"unsupported mount type",
+		)
 	}
 	return mount, nil
 }
