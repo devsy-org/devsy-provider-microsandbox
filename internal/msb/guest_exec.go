@@ -88,18 +88,10 @@ func (e *nativeExecution) CloseInput(ctx context.Context) error {
 	return closeGuestInput(ctx, e.input)
 }
 
-// closeGuestInput delivers guest EOF. Only ExecSink.Close sends EOF; the SDK
-// treats an empty write as a no-op. Close takes no context, so cancellation
-// stops waiting and leaves the pump's kill and handle close to release it.
-func closeGuestInput(ctx context.Context, input guestInput) error {
-	done := make(chan error, 1)
-	go func() { done <- input.Close() }()
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return context.Cause(ctx)
-	}
+// closeGuestInput delivers EOF synchronously. The pump kills and closes the
+// execution before joining input cleanup, releasing native calls on cancellation.
+func closeGuestInput(_ context.Context, input guestInput) error {
+	return input.Close()
 }
 
 type guestPump struct {
@@ -165,8 +157,9 @@ func (p *guestPump) close() error {
 		killErr = p.execution.Kill(cleanup)
 		stop()
 	}
+	closeErr := p.execution.Close()
 	<-p.copied
-	return errors.Join(killErr, p.execution.Close())
+	return errors.Join(killErr, closeErr)
 }
 
 func (p *guestPump) fail(err error) {
@@ -186,6 +179,11 @@ func (p *guestPump) finish() error {
 
 func (p *guestPump) forwardInput() {
 	defer close(p.copied)
+	defer func() {
+		if err := p.execution.CloseInput(p.ctx); err != nil {
+			p.fail(fmt.Errorf("close guest input: %w", err))
+		}
+	}()
 	if p.req.Stdin != nil {
 		_, err := io.Copy(guestInputWriter{ctx: p.ctx, execution: p.execution}, p.req.Stdin)
 		if err != nil {
@@ -195,9 +193,6 @@ func (p *guestPump) forwardInput() {
 			}
 			return
 		}
-	}
-	if err := p.execution.CloseInput(p.ctx); err != nil {
-		p.fail(fmt.Errorf("close guest input: %w", err))
 	}
 }
 

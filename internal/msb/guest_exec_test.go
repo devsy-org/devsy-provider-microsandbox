@@ -207,9 +207,10 @@ func (s *guestSuite) TestCleanupFailureDoesNotReturnGuestCode() {
 }
 
 type sinkFixture struct {
-	writes  int
-	closed  chan struct{}
-	release chan struct{}
+	writes   int
+	closed   chan struct{}
+	release  chan struct{}
+	finished chan struct{}
 }
 
 func (f *sinkFixture) WriteCtx(context.Context, []byte) (int, error) {
@@ -218,6 +219,9 @@ func (f *sinkFixture) WriteCtx(context.Context, []byte) (int, error) {
 }
 
 func (f *sinkFixture) Close() error {
+	if f.finished != nil {
+		defer close(f.finished)
+	}
 	close(f.closed)
 	if f.release != nil {
 		<-f.release
@@ -237,14 +241,68 @@ func (s *guestSuite) TestInputEOFUsesSinkClose() {
 	}
 }
 
+type blockedEOFExecution struct {
+	*guestFixture
+	sink         *sinkFixture
+	handleClosed chan struct{}
+}
+
+func (e *blockedEOFExecution) CloseInput(ctx context.Context) error {
+	return closeGuestInput(ctx, e.sink)
+}
+
+func (e *blockedEOFExecution) Close() error {
+	err := e.guestFixture.Close()
+	close(e.handleClosed)
+	return err
+}
+
 func (s *guestSuite) TestCancellationReleasesBlockedInputEOF() {
-	sink := &sinkFixture{closed: make(chan struct{}), release: make(chan struct{})}
-	defer close(sink.release)
-	ctx, cancel := context.WithCancelCause(context.Background())
-	failure := errors.New("stopped")
-	go func() {
-		<-sink.closed
-		cancel(failure)
-	}()
-	s.ErrorIs(closeGuestInput(ctx, sink), failure)
+	sink := &sinkFixture{
+		closed: make(chan struct{}), release: make(chan struct{}), finished: make(chan struct{}),
+	}
+	var release sync.Once
+	defer release.Do(func() { close(sink.release) })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	execution := &blockedEOFExecution{
+		guestFixture: &guestFixture{
+			waitContext: true,
+		},
+		sink:         sink,
+		handleClosed: make(chan struct{}),
+	}
+	done := make(chan error, 1)
+	go func() { _, err := pumpGuest(ctx, execution, ExecRequest{}); done <- err }()
+	s.awaitGuestCleanup(sink.closed, "stdin close never started")
+	cancel()
+	s.awaitGuestCleanup(execution.handleClosed, "handle teardown waited for stdin cleanup")
+	s.True(execution.killed)
+	s.True(execution.closed)
+	select {
+	case err := <-done:
+		s.ErrorIs(err, context.Canceled)
+		s.FailNow("pump returned before stdin cleanup finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+	release.Do(func() { close(sink.release) })
+	select {
+	case err := <-done:
+		s.ErrorIs(err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		s.FailNow("pump did not join stdin cleanup")
+	}
+	select {
+	case <-sink.finished:
+	default:
+		s.Fail("stdin cleanup still running after pump returned")
+	}
+}
+
+func (s *guestSuite) awaitGuestCleanup(signal <-chan struct{}, failure string) {
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		s.FailNow(failure)
+	}
 }
