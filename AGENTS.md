@@ -53,7 +53,7 @@ Workflow and distribution changes must pass the native packaging and real Devsy
 installer checks in CI. Keep README instructions standalone and accurate.
 
 Use scoped branches, signed Conventional Commits, and concise subjects. Satisfy
-any repository CLA requirements. Open draft PRs for review. Verify validation,
+any repository CLA requirements. Contributors sign the CLA by commenting when asked; bots are allowlisted. Open draft PRs for review. Verify validation,
 applicable CI checks, and completed Greptile and CodeRabbit reviews against the
 final head; resolve significant valid findings before merging. A skipped or
 rate-limited review is pending, not a completed review. Merge only with human
