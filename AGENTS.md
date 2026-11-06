@@ -72,6 +72,13 @@ the resulting commit message.
 
 Release Please creates a draft release and tag. Build and verify all native assets from the tagged commit before publishing. Publish a release behind the current latest without marking it latest. Rerun the Release assets workflow with the tag to recover a failure. For an already published release, download its assets and verify their checksums and regenerated provider manifest without uploading or publishing again. Never publish a draft with incomplete assets.
 
+Guest stdin cleanup is joined after Kill and handle teardown. The gated
+`TestRealGuestEOF` uses `DEVSY_QUALIFY_RUNTIME=1`, `DEVSY_QUALIFY_SANDBOX`,
+`MSB_PATH`, and `MSB_LIBKRUNFW_PATH` with an isolated `MSB_HOME` and an existing
+running Alpine VM. With the official darwin arm64 0.7.13 pair, normal cat EOF
+and 51 cancelled execs left 2 goroutines before and after settling. No native
+stdin Close leak reproduced. Preserve Kill before joining stdin cleanup.
+
 Real VM conformance requires the matching msb 0.7.13 executable and firmware,
 with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`, plus Hypervisor.framework on
 Mac or accessible KVM on Linux. Run:
