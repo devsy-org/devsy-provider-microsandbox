@@ -36,7 +36,7 @@ invariants and rationale rather than restating code.
   backend failures remain errors.
 - Preserve validation before mutation, provisioning-only version gates, mount
   ownership, image snapshot identity, and secret redaction.
-- Info must advertise capabilities regardless of runtime version so the host invokes provisioning preflight before recreation.
+- Info must not change capabilities based on the runtime version probe: the host needs preflight and may select destructive recreation.
 - Installation and the plugin handshake must not create or start a VM. Keep
   stdout reserved for the plugin protocol; diagnostics belong on stderr.
 - Do not change the built-in Devsy provider or migrate existing provider sources
