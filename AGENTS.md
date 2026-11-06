@@ -72,11 +72,15 @@ the resulting commit message.
 
 Release Please creates a draft release and tag. Build and verify all native assets from the tagged commit before publishing. Publish a release behind the current latest without marking it latest. Rerun the Release assets workflow with the tag to recover a failure. For an already published release, download its assets and verify their checksums and regenerated provider manifest without uploading or publishing again. Never publish a draft with incomplete assets.
 
-For real VM conformance, set absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH` to the
-matching 0.7.13 pair, then run `DEVSY_MSB_CONFORMANCE=1 mise exec -- go test -v
--count=1 -timeout 35m ./internal/server -run '^TestRealRuntimeConformance$'`.
-The test creates a short isolated home under /tmp and pulls Alpine 3.22 from
-Docker Hub. It requires Hypervisor.framework on Mac or accessible KVM on Linux.
-The signal scenario is explicitly skipped because the SDK lacks signal events.
-CI downloads the size and SHA-256 pinned Linux pair used by relocation and runs
-the same suite on ubuntu-latest with KVM. This job is advisory until reliable.
+Real VM conformance requires the matching msb 0.7.13 executable and firmware,
+with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`, plus Hypervisor.framework on
+Mac or accessible KVM on Linux. Run:
+
+```sh
+unset DEVSY_HOME
+DEVSY_MSB_CONFORMANCE=1 mise exec -- go test -v -count=1 -timeout 35m ./internal/server -run '^TestRealRuntimeConformance$'
+```
+
+The test isolates its runtime home under /tmp and pulls Alpine 3.22 from Docker
+Hub. Signal reporting is explicitly skipped because the SDK lacks signal events.
+Hosted runners lack KVM, so CI does not run real VM conformance.
