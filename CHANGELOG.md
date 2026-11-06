@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.3](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.2...v1.0.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/stretchr/testify to v1.12.1 ([#54](https://github.com/devsy-org/devsy-provider-microsandbox/issues/54)) ([acc1a0f](https://github.com/devsy-org/devsy-provider-microsandbox/commit/acc1a0f683b2b43180d580b23211062f826f509b))
+* **deps:** update module google.golang.org/grpc to v1.85.0 ([#55](https://github.com/devsy-org/devsy-provider-microsandbox/issues/55)) ([1c22091](https://github.com/devsy-org/devsy-provider-microsandbox/commit/1c220913297c3f4e50edfa91846ff6350d7d8b26))
+* **microsandbox:** release guest stdin deterministically after cancellation ([#52](https://github.com/devsy-org/devsy-provider-microsandbox/issues/52)) ([a8d1ee6](https://github.com/devsy-org/devsy-provider-microsandbox/commit/a8d1ee63401e6c7290bcd1ab47eca169d876c933))
+
 ## [1.0.2](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.1...v1.0.2) (2026-11-05)
 
 
