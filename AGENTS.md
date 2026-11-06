@@ -78,3 +78,16 @@ Guest stdin cleanup is joined after Kill and handle teardown. The gated
 running Alpine VM. With the official darwin arm64 0.7.13 pair, normal cat EOF
 and 51 cancelled execs left 2 goroutines before and after settling. No native
 stdin Close leak reproduced. Preserve Kill before joining stdin cleanup.
+
+Real VM conformance requires the matching msb 0.7.13 executable and firmware,
+with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`, plus Hypervisor.framework on
+Mac or accessible KVM on Linux. Run:
+
+```sh
+unset DEVSY_HOME
+DEVSY_MSB_CONFORMANCE=1 mise exec -- go test -v -count=1 -timeout 35m ./internal/server -run '^TestRealRuntimeConformance$'
+```
+
+The test isolates its runtime home under /tmp and pulls Alpine 3.22 from Docker
+Hub. Signal reporting is explicitly skipped because the SDK lacks signal events.
+Hosted runners lack KVM, so CI does not run real VM conformance.

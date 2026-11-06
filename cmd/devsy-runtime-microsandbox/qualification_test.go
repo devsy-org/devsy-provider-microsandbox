@@ -238,3 +238,32 @@ func runQualifiedAdapter(t *testing.T, binary string) []byte {
 	require.NoError(t, err, stderr.buffer.String())
 	return stdout.buffer.Bytes()
 }
+
+func TestPinnedRealRuntimeConformance(t *testing.T) {
+	if os.Getenv("DEVSY_MSB_CONFORMANCE") != "1" {
+		t.Skip("requires explicit real microVM qualification")
+	}
+	require.Equal(t, "linux", runtime.GOOS)
+	require.Equal(t, "amd64", runtime.GOARCH)
+	root := t.TempDir()
+	archive := downloadQualifiedArchive(t, root)
+	bundle := filepath.Join(root, "bundle")
+	require.NoError(t, os.Mkdir(bundle, 0o700))
+	msbPath, firmwarePath := extractQualifiedPair(t, archive, bundle)
+	t.Setenv("MSB_PATH", msbPath)
+	t.Setenv("MSB_LIBKRUNFW_PATH", firmwarePath)
+	command := exec.CommandContext(
+		t.Context(),
+		"go",
+		"test",
+		"-v",
+		"-count=1",
+		"-timeout",
+		"35m",
+		"../../internal/server",
+		"-run",
+		"^TestRealRuntimeConformance$",
+	)
+	command.Stdout, command.Stderr = os.Stdout, os.Stderr
+	require.NoError(t, command.Run())
+}
