@@ -99,6 +99,69 @@ func (s *runtimeSuite) TestInfo() {
 	s.True(info.GetCapabilities().GetReusePreflight())
 }
 
+func (s *runtimeSuite) TestInfoCapabilitiesIgnoreRuntimeVersion() {
+	for _, version := range []string{recreateRuntimeVersion, recreateOldVersion, "unreadable version", ""} {
+		s.Run(version, func() {
+			s.SetupTest()
+			s.client.version = version
+			info, err := s.runtime.Info(
+				context.Background(),
+				&runtimev1.InfoRequest{SupportsRecreateOnRun: true},
+			)
+			s.Require().NoError(err)
+			s.NoError(runtimev1.ValidateInfo(info))
+			s.True(info.Capabilities.ProvisioningPreflight)
+			s.True(info.Capabilities.ReusePreflight)
+			s.True(info.Capabilities.Logs)
+			s.True(info.Capabilities.RequiresWorkspaceChown)
+			s.Equal([]runtimev1.MountType{
+				runtimev1.MountType_MOUNT_TYPE_BIND,
+				runtimev1.MountType_MOUNT_TYPE_VOLUME,
+				runtimev1.MountType_MOUNT_TYPE_TMPFS,
+			}, info.Capabilities.MountTypes)
+			s.Equal(runtimev1.RecreateMode_RECREATE_MODE_ON_RUN, info.Capabilities.RecreateMode)
+			s.Equal([]string{versionCall}, s.client.calls)
+		})
+	}
+}
+
+func (s *runtimeSuite) TestInfoProbeFailureNeverAdvertisesDestructiveRecreate() {
+	ctx := context.Background()
+	request := &runtimev1.InfoRequest{SupportsRecreateOnRun: true}
+	existing := s.seedRecreateTarget(true)
+	before, err := s.runtime.Info(ctx, request)
+	s.Require().NoError(err)
+	s.NoError(runtimev1.ValidateInfo(before))
+	s.Equal(runtimev1.RecreateMode_RECREATE_MODE_ON_RUN, before.Capabilities.RecreateMode)
+	s.True(before.Capabilities.ProvisioningPreflight)
+	s.True(before.Capabilities.ReusePreflight)
+
+	s.client.fail = versionCall
+	failed, err := s.runtime.Info(ctx, request)
+	s.Require().Error(err)
+	s.Nil(failed)
+	s.Error(runtimev1.ValidateInfo(failed))
+
+	s.client.fail = ""
+	_, err = s.runtime.ProvisioningPreflight(ctx, &runtimev1.ProvisioningPreflightRequest{})
+	s.Require().NoError(err)
+	after, err := s.runtime.Info(ctx, request)
+	s.Require().NoError(err)
+	s.NoError(runtimev1.ValidateInfo(after))
+	s.Equal(before.Capabilities, after.Capabilities)
+	s.Equal(runtimev1.RecreateMode_RECREATE_MODE_ON_RUN, after.Capabilities.RecreateMode)
+	s.True(after.Capabilities.ProvisioningPreflight)
+	s.True(after.Capabilities.ReusePreflight)
+	s.Equal([]string{versionCall, versionCall, versionCall, versionCall}, s.client.calls)
+	_, err = s.runtime.RunImage(ctx, s.request)
+	s.Equal(codes.AlreadyExists, status.Code(err))
+	s.Equal(existing, *s.client.info)
+	s.Equal(
+		[]string{versionCall, versionCall, versionCall, versionCall, versionCall, findCall},
+		s.client.calls,
+	)
+}
+
 func (s *runtimeSuite) TestRunImageOwnerAndSnapshot() {
 	s.prepareImage()
 	_, err := s.runtime.RunImage(context.Background(), s.request)
