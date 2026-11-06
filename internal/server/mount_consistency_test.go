@@ -84,3 +84,28 @@ func (s *runtimeSuite) TestUnsupportedMountOptionPreservesRecreateTarget() {
 		}
 	}
 }
+
+func (s *runtimeSuite) TestUnsupportedMountTypePreservesRecreateTarget() {
+	for _, workspace := range []bool{false, true} {
+		s.Run("workspace="+strconv.FormatBool(workspace), func() {
+			s.SetupTest()
+			s.client.version = recreateRuntimeVersion
+			s.request.AllowRecreate = true
+			before := s.seedRecreateTarget(true)
+			mount := &runtimev1.Mount{Type: runtimev1.MountType(99), Target: "/unsupported"}
+			if workspace {
+				s.request.WorkspaceMount = mount
+			} else {
+				s.request.Mounts = []*runtimev1.Mount{mount}
+			}
+			_, err := s.runtime.RunImage(context.Background(), s.request)
+			s.Equal(codes.Unimplemented, status.Code(err))
+			s.Require().Len(status.Convert(err).Details(), 1)
+			detail, ok := status.Convert(err).Details()[0].(*runtimev1.RuntimeError)
+			s.Require().True(ok)
+			s.Equal(runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_UNSUPPORTED, detail.GetCode())
+			s.Equal(before, *s.client.info)
+			s.NotContains(s.client.calls, recreateCreateCall)
+		})
+	}
+}

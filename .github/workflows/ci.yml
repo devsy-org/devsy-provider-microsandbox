@@ -53,6 +53,28 @@ jobs:
           DEVSY_QUALIFY_RUNTIME: "1"
           DEVSY_ADAPTER_BINARY: ${{ runner.temp }}/devsy-runtime-microsandbox
         run: go test -count=1 -timeout 10m ./cmd/devsy-runtime-microsandbox -run '^TestRelocatedPinnedRuntime$'
+  conformance:
+    name: Real microVM conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - name: Enable KVM access
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Run against the pinned relocated runtime
+        env:
+          DEVSY_MSB_CONFORMANCE: "1"
+        run: go test -v -count=1 -timeout 38m ./cmd/devsy-runtime-microsandbox -run '^TestPinnedRealRuntimeConformance$'
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
