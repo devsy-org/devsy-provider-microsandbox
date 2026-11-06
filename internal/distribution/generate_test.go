@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -43,9 +44,66 @@ func (s *distributionSuite) TestManifestPinsEveryExecutableAndPreservesOptions()
 		)
 		s.Contains(string(metadata.Checksums), expected+"  "+item.Name+"\n")
 	}
+	s.NotContains(parsed.Options, "MSB_HOME")
+	s.Empty(parsed.Options["MSB_PATH"].Default)
+	s.Equal("Devsy on MicroSandbox", parsed.Description)
 	again, err := Generate("v1.2.3", s.artifacts())
 	s.Require().NoError(err)
 	s.Equal(metadata, again)
+}
+
+func (s *distributionSuite) TestDevelopmentManifestPinsTheLocalBuild() {
+	manifest, err := GenerateDevelopment(s.development())
+	s.Require().NoError(err)
+	var parsed testManifest
+	s.Require().NoError(yaml.Unmarshal(manifest, &parsed))
+	s.Equal("microsandbox-dev", parsed.Name)
+	s.Equal("v0.0.0-dev+abc1234", parsed.Version)
+	s.Contains(parsed.Description, "local development build")
+	s.Equal("/host/dev/runtime/msb", parsed.Options["MSB_PATH"].Default)
+	s.Equal("/host/dev/runtime/libkrunfw.so.5.6.1", parsed.Options["MSB_LIBKRUNFW_PATH"].Default)
+	s.Equal("/host/home/.microsandbox-dev", parsed.Options["MSB_HOME"].Default)
+	s.Contains(parsed.OptionGroups[0].Options, "MSB_HOME")
+	s.Equal("2048", parsed.Options["MICROSANDBOX_MEMORY"].Default)
+	s.Equal([]testBinary{{
+		OS:       "linux",
+		Arch:     "amd64",
+		Name:     "devsy-runtime-microsandbox-dev-0123456789ab",
+		Path:     "/host/dev/devsy-runtime-microsandbox-dev-0123456789ab",
+		Checksum: s.development().Checksum,
+	}}, parsed.Agent.Binaries["DEVSY_RUNTIME_DRIVER"])
+	again, err := GenerateDevelopment(s.development())
+	s.Require().NoError(err)
+	s.Equal(manifest, again)
+}
+
+func (s *distributionSuite) TestDevelopmentExecutableIsContentAddressed() {
+	path := filepath.Join(s.T().TempDir(), "build")
+	s.Require().NoError(os.WriteFile(path, []byte("build"), 0o600))
+	name, checksum, err := DevelopmentExecutable(path)
+	s.Require().NoError(err)
+	s.Equal(fmt.Sprintf("%x", sha256.Sum256([]byte("build"))), checksum)
+	s.Equal(DevelopmentExecutablePrefix+checksum[:12], name)
+}
+
+func (s *distributionSuite) TestDevelopmentManifestRejectsIncompleteBuilds() {
+	for _, change := range []func(*Development){
+		func(dev *Development) { dev.Executable = "dist/dev/devsy-runtime-microsandbox" },
+		func(dev *Development) { dev.MSBPath = "" },
+		func(dev *Development) { dev.LibkrunfwPath = "runtime/libkrunfw.so" },
+		func(dev *Development) { dev.MSBHome = "~/.microsandbox-dev" },
+		func(dev *Development) { dev.OS = "" },
+		func(dev *Development) { dev.Checksum = "" },
+		func(dev *Development) { dev.Checksum = "0123" },
+		func(dev *Development) { dev.Version = "0.0.0-dev" },
+		func(dev *Development) { dev.Version = "v0.0.0-dev+bad build" },
+	} {
+		dev := s.development()
+		change(&dev)
+		manifest, err := GenerateDevelopment(dev)
+		s.Error(err)
+		s.Empty(manifest)
+	}
 }
 
 func (s *distributionSuite) TestInvalidTagOrIncompleteArtifactsProduceNoMetadata() {
@@ -65,6 +123,19 @@ func (s *distributionSuite) TestInvalidTagOrIncompleteArtifactsProduceNoMetadata
 	s.ErrorContains(err, "nonempty regular file")
 }
 
+func (s *distributionSuite) development() Development {
+	return Development{
+		Version:       "v0.0.0-dev+abc1234",
+		OS:            "linux",
+		Arch:          "amd64",
+		Executable:    "/host/dev/devsy-runtime-microsandbox-dev-0123456789ab",
+		Checksum:      strings.Repeat("0123456789abcdef", 4),
+		MSBPath:       "/host/dev/runtime/msb",
+		LibkrunfwPath: "/host/dev/runtime/libkrunfw.so.5.6.1",
+		MSBHome:       "/host/home/.microsandbox-dev",
+	}
+}
+
 func (s *distributionSuite) artifacts() string {
 	directory := s.T().TempDir()
 	for _, name := range []string{
@@ -80,10 +151,16 @@ func (s *distributionSuite) artifacts() string {
 }
 
 type testManifest struct {
-	Name    string                `yaml:"name"`
-	Version string                `yaml:"version"`
-	Options map[string]testOption `yaml:"options"`
-	Agent   testAgent             `yaml:"agent"`
+	Name         string                `yaml:"name"`
+	Version      string                `yaml:"version"`
+	Description  string                `yaml:"description"`
+	OptionGroups []testOptionGroup     `yaml:"optionGroups"`
+	Options      map[string]testOption `yaml:"options"`
+	Agent        testAgent             `yaml:"agent"`
+}
+
+type testOptionGroup struct {
+	Options []string `yaml:"options"`
 }
 type (
 	testOption struct {
