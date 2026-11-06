@@ -36,7 +36,7 @@ invariants and rationale rather than restating code.
   backend failures remain errors.
 - Preserve validation before mutation, provisioning-only version gates, mount
   ownership, image snapshot identity, and secret redaction.
-- Info must advertise capabilities regardless of runtime version so the host invokes provisioning preflight before recreation.
+- Info must not change capabilities based on the runtime version probe: the host needs preflight and may select destructive recreation.
 - Installation and the plugin handshake must not create or start a VM. Keep
   stdout reserved for the plugin protocol; diagnostics belong on stderr.
 - Do not change the built-in Devsy provider or migrate existing provider sources
@@ -53,7 +53,7 @@ Workflow and distribution changes must pass the native packaging and real Devsy
 installer checks in CI. Keep README instructions standalone and accurate.
 
 Use scoped branches, signed Conventional Commits, and concise subjects. Satisfy
-any repository CLA requirements. Open draft PRs for review. Verify validation,
+any repository CLA requirements. Contributors sign the CLA by commenting when asked; bots are allowlisted. Open draft PRs for review. Verify validation,
 applicable CI checks, and completed Greptile and CodeRabbit reviews against the
 final head; resolve significant valid findings before merging. A skipped or
 rate-limited review is pending, not a completed review. Merge only with human
@@ -78,3 +78,16 @@ Guest stdin cleanup is joined after Kill and handle teardown. The gated
 running Alpine VM. With the official darwin arm64 0.7.13 pair, normal cat EOF
 and 51 cancelled execs left 2 goroutines before and after settling. No native
 stdin Close leak reproduced. Preserve Kill before joining stdin cleanup.
+
+Real VM conformance requires the matching msb 0.7.13 executable and firmware,
+with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`, plus Hypervisor.framework on
+Mac or accessible KVM on Linux. Run:
+
+```sh
+unset DEVSY_HOME
+DEVSY_MSB_CONFORMANCE=1 mise exec -- go test -v -count=1 -timeout 35m ./internal/server -run '^TestRealRuntimeConformance$'
+```
+
+The test isolates its runtime home under /tmp and pulls Alpine 3.22 from Docker
+Hub. Signal reporting is explicitly skipped because the SDK lacks signal events.
+Hosted runners lack KVM, so CI does not run real VM conformance.
