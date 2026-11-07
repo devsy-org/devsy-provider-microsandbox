@@ -51,7 +51,12 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 	if err := c.ensureVolumes(ctx, spec.Mounts); err != nil {
 		return err
 	}
-	return c.run(ctx, runArgs(sandbox, spec)...)
+	conf, err := writeEnvConf(spec.Env)
+	if err != nil {
+		return err
+	}
+	defer conf.remove()
+	return c.runWithEnv(ctx, conf.environ, runArgs(sandbox, spec, conf.path), conf.values())
 }
 
 // Find returns nil only when msb reports that the VM does not exist.
@@ -146,33 +151,27 @@ func (c Client) ensureVolumes(ctx context.Context, mounts []Mount) error {
 }
 
 func (c Client) run(ctx context.Context, args ...string) error {
+	return c.runWithEnv(ctx, nil, args, nil)
+}
+
+// runWithEnv adds environ to the child environment and masks secrets in error
+// text, since msb may echo a value it was given.
+func (c Client) runWithEnv(ctx context.Context, environ, args, secrets []string) error {
 	// #nosec G204 -- args are a resolved binary path and controlled config values
-	out, err := exec.CommandContext(ctx, c.binary(), args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, c.binary(), args...)
+	if len(environ) > 0 {
+		cmd.Env = append(os.Environ(), environ...)
+	}
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf(
 			"msb %s: %s: %w",
-			redactArgs(args),
-			strings.TrimSpace(string(out)),
+			strings.Join(args, " "),
+			redactSecrets(strings.TrimSpace(string(out)), secrets),
 			err,
 		)
 	}
 	return nil
-}
-
-// redactArgs joins args for an error message while masking --env values, which
-// may carry secrets from the devcontainer configuration.
-func redactArgs(args []string) string {
-	out := make([]string, len(args))
-	copy(out, args)
-	for i := 0; i+1 < len(out); i++ {
-		if out[i] != envFlag {
-			continue
-		}
-		if k, _, ok := strings.Cut(out[i+1], "="); ok {
-			out[i+1] = k + "=***"
-		}
-	}
-	return strings.Join(out, " ")
 }
 
 func (c Client) binary() string {

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	envFlag       = "--env"
+	flagRuntime   = "--runtime-conf"
 	msbCmdRun     = "run"
 	msbFlagDetach = "--detach"
 	flagRootDisk  = "--root-disk"
@@ -14,14 +14,19 @@ const (
 
 // runArgs builds a detached `msb run` invocation, matching microsandbox's own
 // ENTRYPOINT/CMD split: --entrypoint sets the executable, and a trailing "--"
-// plus argv overrides the image CMD.
-func runArgs(sandbox string, spec Spec) []string {
+// plus argv overrides the image CMD. Environment values never appear in argv:
+// runtimeConf names a file that references them by host variable (see
+// writeEnvConf).
+func runArgs(sandbox string, spec Spec, runtimeConf string) []string {
 	args := []string{msbCmdRun, msbFlagDetach, "--name", sandbox}
 	if spec.AllowRecreate {
 		args = append(args, "--replace")
 	}
 	if spec.Entrypoint != "" {
 		args = append(args, "--entrypoint", spec.Entrypoint)
+	}
+	if runtimeConf != "" {
+		args = append(args, flagRuntime, runtimeConf)
 	}
 	args = append(args, runtimeArgs(spec)...)
 	args = append(args, resourceArgs(spec)...)
@@ -38,9 +43,6 @@ func runtimeArgs(spec Spec) []string {
 	var args []string
 	if spec.User != "" {
 		args = append(args, "--user", spec.User)
-	}
-	for k, v := range spec.Env {
-		args = append(args, envFlag, k+"="+v)
 	}
 	for k, v := range spec.Labels {
 		args = append(args, "--label", k+"="+v)

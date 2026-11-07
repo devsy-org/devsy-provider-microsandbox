@@ -13,7 +13,7 @@ func TestRunArgsReplacementIsExplicit(t *testing.T) {
 			Mounts: []Mount{{Source: testBindSrc, Target: testBindDst}},
 			Cmd:    []string{"sh", "-c", "echo preserved"},
 		}
-		args := runArgs(wsName, spec)
+		args := runArgs(wsName, spec, "")
 		want := []string{msbCmdRun, msbFlagDetach, "--name", wsName}
 		if allowed {
 			want = append(want, "--replace")

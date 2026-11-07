@@ -36,6 +36,11 @@ invariants and rationale rather than restating code.
   backend failures remain errors.
 - Preserve validation before mutation, provisioning-only version gates, mount
   ownership, image snapshot identity, and secret redaction.
+- Keep guest environment values off the `msb run` command line, where other
+  local users can read them with `ps`. `internal/msb` passes them through host
+  variables referenced by a temporary `--runtime-conf` file (msb 0.7.13 and
+  newer). The file holds no values and is removed after `msb run` returns. The
+  values stay in the msb child's environment, readable only by the same user.
 - Info must not change capabilities based on the runtime version probe: the host needs preflight and may select destructive recreation.
 - Installation and the plugin handshake must not create or start a VM. Keep
   stdout reserved for the plugin protocol; diagnostics belong on stderr.

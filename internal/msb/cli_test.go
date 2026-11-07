@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -188,11 +190,44 @@ func (s *clientSuite) TestCreateVolumeFailuresAndRedaction() {
 	err := s.client.Create(
 		ctx,
 		wsName,
-		Spec{Image: testImg, Env: map[string]string{"TOKEN": "secret-value"}},
+		Spec{Image: testImg, Env: map[string]string{testEnvKey: "secret-value"}},
 	)
 	s.Require().Error(err)
-	s.Contains(err.Error(), "TOKEN=***")
 	s.NotContains(err.Error(), "secret-value")
+}
+
+func (s *clientSuite) TestCreatePassesEnvOffArgv() {
+	const secret = "s3cr${x}t" // #nosec G101 -- test fixture
+	s.Require().NoError(s.client.Create(
+		context.Background(),
+		wsName,
+		Spec{Image: testImg, Env: map[string]string{testEnvKey: secret, "A": "1"}},
+	))
+	args := s.args()
+	for _, a := range args {
+		s.NotContains(a, secret)
+		s.NotEqual("--env", a)
+	}
+	idx := slices.Index(args, flagRuntime)
+	s.Require().GreaterOrEqual(idx, 0)
+	conf := args[idx+1]
+	data, err := os.ReadFile(s.record + ".runtime")
+	s.Require().NoError(err)
+	var got struct {
+		Conf    string            `json:"conf"`
+		Environ map[string]string `json:"environ"`
+	}
+	s.Require().NoError(json.Unmarshal(data, &got))
+	s.JSONEq(`{"env":{"A":"${DEVSY_MSB_ENV_0}","TOKEN":"${DEVSY_MSB_ENV_1}"}}`, got.Conf)
+	s.NotContains(got.Conf, secret)
+	s.Equal(map[string]string{"DEVSY_MSB_ENV_0": "1", "DEVSY_MSB_ENV_1": secret}, got.Environ)
+	_, err = os.Stat(conf)
+	s.True(os.IsNotExist(err), "env file must be removed after msb returns")
+}
+
+func (s *clientSuite) TestCreateWithoutEnvOmitsRuntimeConf() {
+	s.Require().NoError(s.client.Create(context.Background(), wsName, Spec{Image: testImg}))
+	s.NotContains(s.args(), flagRuntime)
 }
 
 func (s *clientSuite) TestExecCancellationWithBlockedInput() {
@@ -308,7 +343,36 @@ func recordHelper(args []string) error {
 		return err
 	}
 	// #nosec G703 -- path is set by the parent test to a private temporary directory.
-	return os.WriteFile(os.Getenv("DEVSY_MSB_TEST_RECORD"), data, 0o600)
+	if err := os.WriteFile(os.Getenv("DEVSY_MSB_TEST_RECORD"), data, 0o600); err != nil {
+		return err
+	}
+	return recordRuntimeConf(args)
+}
+
+// recordRuntimeConf captures what a real msb would read: the --runtime-conf
+// file and the host variables it references.
+func recordRuntimeConf(args []string) error {
+	idx := slices.Index(args, flagRuntime)
+	if idx < 0 || idx+1 >= len(args) {
+		return nil
+	}
+	// #nosec G304 G703 -- path comes from the parent test's own invocation.
+	conf, err := os.ReadFile(args[idx+1])
+	if err != nil {
+		return err
+	}
+	environ := map[string]string{}
+	for _, kv := range os.Environ() {
+		if k, v, ok := strings.Cut(kv, "="); ok && strings.HasPrefix(k, envConfPrefix) {
+			environ[k] = v
+		}
+	}
+	data, err := json.Marshal(map[string]any{"conf": string(conf), "environ": environ})
+	if err != nil {
+		return err
+	}
+	// #nosec G703 -- path is set by the parent test to a private temporary directory.
+	return os.WriteFile(os.Getenv("DEVSY_MSB_TEST_RECORD")+".runtime", data, 0o600)
 }
 
 func dispatchHelper(args []string, mode string) int {
