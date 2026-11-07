@@ -1,13 +1,16 @@
-name: microsandbox
+name: {{.Name}}
 version: {{.Tag}}
 icon: https://dl.devsy.sh/assets/devsy.svg
 home: https://github.com/devsy-org/devsy-provider-microsandbox
 description: |-
-  Devsy on MicroSandbox
+  Devsy on MicroSandbox{{if .Dev}} (local development build){{end}}
 optionGroups:
   - options:
       - MSB_PATH
       - MSB_LIBKRUNFW_PATH
+{{- if .Dev}}
+      - MSB_HOME
+{{- end}}
       - MICROSANDBOX_MEMORY
       - MICROSANDBOX_CPUS
       - MICROSANDBOX_MAX_MEMORY
@@ -22,8 +25,17 @@ optionGroups:
 options:
   MSB_PATH:
     description: "Path to the MicroSandbox executable. Set together with MSB_LIBKRUNFW_PATH."
+{{- with .Dev}}
+    default: {{printf "%q" .MSBPath}}
+{{- end}}
   MSB_LIBKRUNFW_PATH:
     description: "Path to the MicroSandbox firmware library. Set together with MSB_PATH."
+{{- with .Dev}}
+    default: {{printf "%q" .LibkrunfwPath}}
+  MSB_HOME:
+    description: "MicroSandbox state directory. Keeps this provider's database, images, and VMs apart from other providers."
+    default: {{printf "%q" .MSBHome}}
+{{- end}}
   MICROSANDBOX_MEMORY:
     description: "Guest memory limit in MiB. Empty uses the runtime default."
     default: "2048"
@@ -75,7 +87,7 @@ agent:
     DEVSY_RUNTIME_DRIVER:
 {{range .Binaries}}      - os: {{.OS}}
         arch: {{.Arch}}
-        path: https://github.com/devsy-org/devsy-provider-microsandbox/releases/download/{{$.Tag}}/{{.Name}}
+        path: {{.Path}}
         name: {{.Name}}
         checksum: {{.Checksum}}
 {{end}}exec:

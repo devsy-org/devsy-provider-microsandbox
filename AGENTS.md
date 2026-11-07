@@ -91,3 +91,23 @@ DEVSY_MSB_CONFORMANCE=1 mise exec -- go test -v -count=1 -timeout 35m ./internal
 The test isolates its runtime home under /tmp and pulls Alpine 3.22 from Docker
 Hub. Signal reporting is explicitly skipped because the SDK lacks signal events.
 Hosted runners lack KVM, so CI does not run real VM conformance.
+
+## Local development provider
+
+Test changes with Devsy through a separate `microsandbox-dev` provider:
+
+```sh
+mise run dev:runtime    # pinned msb 0.7.13 pair in dist/dev/runtime
+mise run dev:provider   # adapter and manifest in dist/dev
+devsy provider add --use=false dist/dev/provider.yaml               # on the host, once
+devsy provider init microsandbox-dev                                # once
+devsy provider set-source microsandbox-dev dist/dev/provider.yaml   # after each build
+```
+
+Devsy requires a checksum for external drivers, so each build gets a
+content-addressed file name and its own manifest; the task keeps the three
+newest builds. The manifest uses the bundled pair and sets `MSB_HOME` to
+`~/.microsandbox-dev`, so a newer SDK cannot upgrade the database used by other
+providers. When building inside a dev container, set `DEVSY_HOST_WORKSPACE` and
+`DEVSY_HOST_HOME` to the host paths of the checkout and home directory; the
+container and host must share a platform.
