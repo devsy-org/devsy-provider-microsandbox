@@ -60,9 +60,14 @@ func TestRealEnvStaysOffArgv(t *testing.T) {
 		Cmd:   []string{"sleep", "300"},
 		Env:   map[string]string{"A7_SECRET": secret, "A7_PLAIN": "plain"},
 	}
-	require.NoError(t, c.Create(ctx, name, spec))
-	close(stop)
-	wg.Wait()
+	err := func() error {
+		defer func() {
+			close(stop)
+			wg.Wait()
+		}()
+		return c.Create(ctx, name, spec)
+	}()
+	require.NoError(t, err)
 	mu.Lock()
 	require.Empty(t, leaked, "secret value appeared in the process table")
 	mu.Unlock()

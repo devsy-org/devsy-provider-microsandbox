@@ -219,6 +219,10 @@ func TestRedactSecretsMasksValues(t *testing.T) {
 	if got != "failed with *** and ***" {
 		t.Errorf("redactSecrets = %q", got)
 	}
+	got = redactSecrets("echo abc-private-token", []string{"abc", "abc-private-token"})
+	if got != "echo ***" {
+		t.Errorf("overlapping redactSecrets = %q", got)
+	}
 }
 
 func hasFlag(args []string, flag string) bool {

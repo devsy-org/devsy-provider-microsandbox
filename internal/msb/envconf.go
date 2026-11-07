@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -75,11 +76,19 @@ func (e envConf) values() []string {
 	return out
 }
 
+// redactSecrets masks all values in one pass, longest first, so a value that is
+// a prefix of another cannot leave part of the longer one visible.
 func redactSecrets(text string, secrets []string) string {
-	for _, v := range secrets {
+	sorted := slices.Clone(secrets)
+	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
+	pairs := make([]string, 0, 2*len(sorted))
+	for _, v := range sorted {
 		if v != "" {
-			text = strings.ReplaceAll(text, v, "***")
+			pairs = append(pairs, v, "***")
 		}
 	}
-	return text
+	if len(pairs) == 0 {
+		return text
+	}
+	return strings.NewReplacer(pairs...).Replace(text)
 }
