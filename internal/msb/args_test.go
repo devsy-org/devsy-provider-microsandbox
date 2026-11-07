@@ -18,6 +18,7 @@ const (
 	shPath        = "/bin/sh"
 	testBindSrc   = "/host/proj"
 	testBindDst   = "/workspaces/proj"
+	testEnvKey    = "TOKEN"
 )
 
 func runPrefix() []string {
@@ -42,7 +43,7 @@ func TestRunArgsFull(t *testing.T) {
 			{Target: "/tmp", Tmpfs: true},
 		},
 	}
-	args := runArgs(wsName, spec)
+	args := runArgs(wsName, spec, "/tmp/conf.json")
 
 	if !slices.Equal(args[:4], runPrefix()) {
 		t.Errorf("prefix = %v, want %v", args[:4], runPrefix())
@@ -59,7 +60,7 @@ func TestRunArgsFull(t *testing.T) {
 
 	wantFlags := [][2]string{
 		{"--entrypoint", shPath},
-		{envFlag, "K=v"},
+		{flagRuntime, "/tmp/conf.json"},
 		{"--label", "devsy.sh/user=vscode"},
 		{"--idle-timeout", "1m30s"},
 		{"--memory", "2048M"},
@@ -80,7 +81,7 @@ func TestRunArgsFull(t *testing.T) {
 }
 
 func TestRunArgsMinimal(t *testing.T) {
-	args := runArgs(wsName, Spec{Image: testImg})
+	args := runArgs(wsName, Spec{Image: testImg}, "")
 	want := append(runPrefix(), testImg)
 	if !slices.Equal(args, want) {
 		t.Errorf("args = %v, want %v", args, want)
@@ -88,14 +89,14 @@ func TestRunArgsMinimal(t *testing.T) {
 }
 
 func TestRunArgsPropagatesUser(t *testing.T) {
-	args := runArgs(wsName, Spec{Image: testImg, User: testUser})
+	args := runArgs(wsName, Spec{Image: testImg, User: testUser}, "")
 	if !hasFlagValue(args, "--user", testUser) {
 		t.Fatalf("args = %v, want --user vscode", args)
 	}
 }
 
 func TestRunArgsCmdWithoutEntrypoint(t *testing.T) {
-	args := runArgs(wsName, Spec{Image: testImg, Cmd: []string{"python3", "worker.py"}})
+	args := runArgs(wsName, Spec{Image: testImg, Cmd: []string{"python3", "worker.py"}}, "")
 	if hasFlag(args, "--entrypoint") {
 		t.Errorf("did not expect --entrypoint in %v", args)
 	}
@@ -106,7 +107,7 @@ func TestRunArgsCmdWithoutEntrypoint(t *testing.T) {
 }
 
 func TestRunArgsEntrypointWithoutCmd(t *testing.T) {
-	args := runArgs(wsName, Spec{Image: testImg, Entrypoint: shPath})
+	args := runArgs(wsName, Spec{Image: testImg, Entrypoint: shPath}, "")
 	want := append(runPrefix(), "--entrypoint", shPath, testImg)
 	if !slices.Equal(args, want) {
 		t.Errorf("args = %v, want %v", args, want)
@@ -204,25 +205,19 @@ func TestResourceArgsEphemeralWithoutSizeUsesRuntimeDefault(t *testing.T) {
 	}
 }
 
-func TestRedactArgsMasksEnvValues(t *testing.T) {
-	args := []string{
-		"create",
-		envFlag,
-		"TOKEN=s3cret",
-		"--label",
-		"k=v",
-		envFlag,
-		"PLAIN=ok",
+func TestRunArgsNeverCarriesEnvValues(t *testing.T) {
+	args := runArgs(wsName, Spec{Image: testImg, Env: map[string]string{testEnvKey: "s3cret"}}, "")
+	for _, a := range args {
+		if strings.Contains(a, "s3cret") || a == "--env" {
+			t.Fatalf("env leaked into argv: %v", args)
+		}
 	}
-	got := redactArgs(args)
-	if strings.Contains(got, "s3cret") || strings.Contains(got, "ok") {
-		t.Errorf("env values leaked: %q", got)
-	}
-	if !strings.Contains(got, "TOKEN=***") || !strings.Contains(got, "PLAIN=***") {
-		t.Errorf("env keys should be preserved with masked values: %q", got)
-	}
-	if !strings.Contains(got, "--label k=v") {
-		t.Errorf("non-env args should be untouched: %q", got)
+}
+
+func TestRedactSecretsMasksValues(t *testing.T) {
+	got := redactSecrets("failed with s3cret and ok", []string{"s3cret", "", "ok"})
+	if got != "failed with *** and ***" {
+		t.Errorf("redactSecrets = %q", got)
 	}
 }
 
