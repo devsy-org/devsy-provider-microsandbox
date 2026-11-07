@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.3...v1.0.4) (2026-11-07)
+
+
+### Bug Fixes
+
+* **msb:** pass guest environment without putting values on argv ([#64](https://github.com/devsy-org/devsy-provider-microsandbox/issues/64)) ([1b5b3ee](https://github.com/devsy-org/devsy-provider-microsandbox/commit/1b5b3ee271634691eefb948c02a499dce7157919))
+
 ## [1.0.3](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.2...v1.0.3) (2026-11-06)
 
 
