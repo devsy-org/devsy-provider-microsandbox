@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -267,7 +269,12 @@ func (s *clientSuite) TestCreateResolvesSymlinkedBindSources() {
 	target := filepath.Join(root, "target")
 	s.Require().NoError(os.Mkdir(target, 0o750))
 	link := filepath.Join(root, "link")
-	s.Require().NoError(os.Symlink(target, link))
+	if err := os.Symlink(target, link); err != nil {
+		if runtime.GOOS == testWindows && deniedSymlink(err) {
+			s.T().Skip("creating symlinks requires privilege on this Windows account")
+		}
+		s.Require().NoError(err)
+	}
 	missing := filepath.Join(root, "missing")
 	resolvedReal, err := filepath.EvalSymlinks(target)
 	s.Require().NoError(err)
@@ -435,6 +442,13 @@ func recordRuntimeConf(args []string) error {
 	}
 	// #nosec G703 -- path is set by the parent test to a private temporary directory.
 	return os.WriteFile(os.Getenv("DEVSY_MSB_TEST_RECORD")+".runtime", data, 0o600)
+}
+
+// errorPrivilegeNotHeld is the Windows error for symlink creation without privilege.
+const errorPrivilegeNotHeld = syscall.Errno(1314)
+
+func deniedSymlink(err error) bool {
+	return errors.Is(err, fs.ErrPermission) || errors.Is(err, errorPrivilegeNotHeld)
 }
 
 func isConfVar(name string) bool {
