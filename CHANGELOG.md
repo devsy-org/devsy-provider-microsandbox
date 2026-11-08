@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.5](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.4...v1.0.5) (2026-11-08)
+
+
+### Bug Fixes
+
+* **msb:** keep devcontainer metadata off the msb command line ([#67](https://github.com/devsy-org/devsy-provider-microsandbox/issues/67)) ([670d2df](https://github.com/devsy-org/devsy-provider-microsandbox/commit/670d2df15783ab98c2e3aa9fa5cf010df71ac300))
+* **msb:** report the real msb error and resolve symlinked mount paths ([#68](https://github.com/devsy-org/devsy-provider-microsandbox/issues/68)) ([4ec8455](https://github.com/devsy-org/devsy-provider-microsandbox/commit/4ec8455cbd364a0687b6570e1fc893e84921d210))
+* **msb:** surface configuration errors to the user ([#70](https://github.com/devsy-org/devsy-provider-microsandbox/issues/70)) ([210b280](https://github.com/devsy-org/devsy-provider-microsandbox/commit/210b28020aa4dd6a9fc425eb3983f2b4a9127be8))
+
 ## [1.0.4](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.3...v1.0.4) (2026-11-07)
 
 
