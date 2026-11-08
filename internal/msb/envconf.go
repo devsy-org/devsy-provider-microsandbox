@@ -9,54 +9,82 @@ import (
 	"strings"
 )
 
-const envConfPrefix = "DEVSY_MSB_ENV_"
+const (
+	envConfPrefix   = "DEVSY_MSB_ENV_"
+	labelConfPrefix = "DEVSY_MSB_LABEL_"
+)
 
-// envConf carries guest environment to `msb run` without putting values on its
-// command line, where other local users can read them with ps.
+// envConf carries guest environment and sandbox labels to `msb run` without
+// putting values on its command line, where other local users can read them with
+// ps. Label values matter because the devcontainer metadata label embeds
+// containerEnv and remoteEnv values.
 type envConf struct {
 	path    string
 	environ []string
 }
 
 // writeEnvConf writes a private --runtime-conf file mapping each guest variable
-// to a ${DEVSY_MSB_ENV_n} reference, and returns the host variables that hold
-// the values. msb substitutes references once and has no escape for "${", so
-// values go through the environment instead of the file. The file holds no
-// secrets. An empty env yields a zero envConf.
-func writeEnvConf(env map[string]string) (envConf, error) {
-	if len(env) == 0 {
+// and label to a ${DEVSY_MSB_...} reference, and returns the host variables that
+// hold the values. msb substitutes references once and has no escape for "${",
+// so values go through the environment instead of the file. The file holds no
+// secrets. Empty env and labels yield a zero envConf.
+func writeEnvConf(env, labels map[string]string) (envConf, error) {
+	if len(env) == 0 && len(labels) == 0 {
 		return envConf{}, nil
 	}
-	keys := make([]string, 0, len(env))
-	for k := range env {
-		keys = append(keys, k)
+	envRefs, envVars := confRefs(envConfPrefix, env)
+	labelRefs, labelVars := confRefs(labelConfPrefix, labels)
+	conf := map[string]any{}
+	if len(envRefs) > 0 {
+		conf["env"] = envRefs
 	}
-	sort.Strings(keys)
-	refs := make(map[string]string, len(env))
-	environ := make([]string, 0, len(env))
-	for i, k := range keys {
-		name := fmt.Sprintf("%s%d", envConfPrefix, i)
-		refs[k] = "${" + name + "}"
-		environ = append(environ, name+"="+env[k])
+	if len(labelRefs) > 0 {
+		conf["labels"] = labelRefs
 	}
-	data, err := json.Marshal(map[string]any{"env": refs})
+	path, err := writeConfFile(conf)
 	if err != nil {
-		return envConf{}, fmt.Errorf("encode microsandbox environment: %w", err)
+		return envConf{}, err
+	}
+	return envConf{path: path, environ: append(envVars, labelVars...)}, nil
+}
+
+func writeConfFile(conf map[string]any) (string, error) {
+	data, err := json.Marshal(conf)
+	if err != nil {
+		return "", fmt.Errorf("encode microsandbox runtime configuration: %w", err)
 	}
 	f, err := os.CreateTemp("", "devsy-msb-env-*.json")
 	if err != nil {
-		return envConf{}, fmt.Errorf("create microsandbox environment file: %w", err)
+		return "", fmt.Errorf("create microsandbox runtime configuration file: %w", err)
 	}
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
-		return envConf{}, fmt.Errorf("write microsandbox environment file: %w", err)
+		return "", fmt.Errorf("write microsandbox runtime configuration file: %w", err)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(f.Name())
-		return envConf{}, fmt.Errorf("write microsandbox environment file: %w", err)
+		return "", fmt.Errorf("write microsandbox runtime configuration file: %w", err)
 	}
-	return envConf{path: f.Name(), environ: environ}, nil
+	return f.Name(), nil
+}
+
+// confRefs maps each key to a reference to a numbered host variable and returns
+// the NAME=value assignments for those variables.
+func confRefs(prefix string, values map[string]string) (map[string]string, []string) {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	refs := make(map[string]string, len(values))
+	environ := make([]string, 0, len(values))
+	for i, k := range keys {
+		name := fmt.Sprintf("%s%d", prefix, i)
+		refs[k] = "${" + name + "}"
+		environ = append(environ, name+"="+values[k])
+	}
+	return refs, environ
 }
 
 func (e envConf) remove() {

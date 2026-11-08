@@ -14,9 +14,9 @@ const (
 
 // runArgs builds a detached `msb run` invocation, matching microsandbox's own
 // ENTRYPOINT/CMD split: --entrypoint sets the executable, and a trailing "--"
-// plus argv overrides the image CMD. Environment values never appear in argv:
-// runtimeConf names a file that references them by host variable (see
-// writeEnvConf).
+// plus argv overrides the image CMD. Environment and label values never
+// appear in argv: runtimeConf names a file that references them by host variable
+// (see writeEnvConf).
 func runArgs(sandbox string, spec Spec, runtimeConf string) []string {
 	args := []string{msbCmdRun, msbFlagDetach, "--name", sandbox}
 	if spec.AllowRecreate {
@@ -43,9 +43,6 @@ func runtimeArgs(spec Spec) []string {
 	var args []string
 	if spec.User != "" {
 		args = append(args, "--user", spec.User)
-	}
-	for k, v := range spec.Labels {
-		args = append(args, "--label", k+"="+v)
 	}
 	if spec.IdleTimeout > 0 {
 		args = append(args, "--idle-timeout", spec.IdleTimeout.String())

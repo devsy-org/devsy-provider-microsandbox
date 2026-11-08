@@ -34,6 +34,8 @@ invariants and rationale rather than restating code.
 - Preserve binary stdout/stderr, literal argv, cancellation, stdin EOF, and
   cleanup behavior. Only an authoritative guest exit event supplies an exit code;
   backend failures remain errors.
+- Keep guest environment and sandbox label values off the `msb` command line: they
+  go through `--runtime-conf` references to host variables (`internal/msb/envconf.go`).
 - Preserve validation before mutation, provisioning-only version gates, mount
   ownership, image snapshot identity, and secret redaction.
 - Keep guest environment values off the `msb run` command line, where other

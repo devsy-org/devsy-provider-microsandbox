@@ -51,7 +51,7 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 	if err := c.ensureVolumes(ctx, spec.Mounts); err != nil {
 		return err
 	}
-	conf, err := writeEnvConf(spec.Env)
+	conf, err := writeEnvConf(spec.Env, spec.Labels)
 	if err != nil {
 		return err
 	}
