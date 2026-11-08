@@ -19,6 +19,7 @@ const (
 	testBindSrc   = "/host/proj"
 	testBindDst   = "/workspaces/proj"
 	testEnvKey    = "TOKEN"
+	testUserLabel = "devsy.sh/user"
 )
 
 func runPrefix() []string {
@@ -31,7 +32,7 @@ func TestRunArgsFull(t *testing.T) {
 		Entrypoint:  shPath,
 		Cmd:         []string{"-c", "sleep infinity", "-"},
 		Env:         map[string]string{"K": "v"},
-		Labels:      map[string]string{"devsy.sh/user": testUser},
+		Labels:      map[string]string{testUserLabel: testUser},
 		IdleTimeout: 90 * time.Second,
 		BlockEgress: true,
 		Memory:      2048,
@@ -61,7 +62,6 @@ func TestRunArgsFull(t *testing.T) {
 	wantFlags := [][2]string{
 		{"--entrypoint", shPath},
 		{flagRuntime, "/tmp/conf.json"},
-		{"--label", "devsy.sh/user=vscode"},
 		{"--idle-timeout", "1m30s"},
 		{"--memory", "2048M"},
 		{"--max-memory", "4096M"},
@@ -205,11 +205,15 @@ func TestResourceArgsEphemeralWithoutSizeUsesRuntimeDefault(t *testing.T) {
 	}
 }
 
-func TestRunArgsNeverCarriesEnvValues(t *testing.T) {
-	args := runArgs(wsName, Spec{Image: testImg, Env: map[string]string{testEnvKey: "s3cret"}}, "")
-	for _, a := range args {
-		if strings.Contains(a, "s3cret") || a == "--env" {
-			t.Fatalf("env leaked into argv: %v", args)
+func TestRunArgsNeverCarriesEnvOrLabelValues(t *testing.T) {
+	spec := Spec{
+		Image:  testImg,
+		Env:    map[string]string{testEnvKey: "s3cret"},
+		Labels: map[string]string{"devcontainer.metadata": `[{"remoteEnv":{"K":"s3cret-label"}}]`},
+	}
+	for _, a := range runArgs(wsName, spec, "") {
+		if strings.Contains(a, "s3cret") || a == "--env" || a == "--label" {
+			t.Fatalf("value leaked into argv element %q", a)
 		}
 	}
 }

@@ -18,7 +18,7 @@ func TestRunArgsReplacementIsExplicit(t *testing.T) {
 		if allowed {
 			want = append(want, "--replace")
 		}
-		want = append(want, "--user", testUser, "--label", "generation=new",
+		want = append(want, "--user", testUser,
 			"--memory", "1024M", "--cpus", "2", "--mount-dir", testBindSrc+":"+testBindDst,
 			testImg, "--", "sh", "-c", "echo preserved")
 		if !slices.Equal(args, want) {

@@ -225,6 +225,42 @@ func (s *clientSuite) TestCreatePassesEnvOffArgv() {
 	s.True(os.IsNotExist(err), "env file must be removed after msb returns")
 }
 
+func (s *clientSuite) TestCreatePassesLabelsOffArgv() {
+	const (
+		secret   = "csecret-7f3a9c41d2" // #nosec G101 -- test fixture
+		metadata = `[{"containerEnv":{"T":"` + secret + `"},"remoteEnv":{"U":"${x}"}}]`
+	)
+	s.Require().NoError(s.client.Create(
+		context.Background(),
+		wsName,
+		Spec{
+			Image:  testImg,
+			Env:    map[string]string{testEnvKey: secret},
+			Labels: map[string]string{"devcontainer.metadata": metadata, testUserLabel: testUser},
+		},
+	))
+	for _, a := range s.args() {
+		s.NotContains(a, secret)
+		s.NotContains(a, "devcontainer.metadata")
+		s.NotEqual("--label", a)
+	}
+	data, err := os.ReadFile(s.record + ".runtime")
+	s.Require().NoError(err)
+	var got struct {
+		Conf    string            `json:"conf"`
+		Environ map[string]string `json:"environ"`
+	}
+	s.Require().NoError(json.Unmarshal(data, &got))
+	s.JSONEq(
+		`{"env":{"TOKEN":"${DEVSY_MSB_ENV_0}"},"labels":{"devcontainer.metadata":"${DEVSY_MSB_LABEL_0}",`+
+			`"devsy.sh/user":"${DEVSY_MSB_LABEL_1}"}}`,
+		got.Conf,
+	)
+	s.NotContains(got.Conf, secret)
+	s.Equal(metadata, got.Environ["DEVSY_MSB_LABEL_0"])
+	s.Equal(testUser, got.Environ["DEVSY_MSB_LABEL_1"])
+}
+
 func (s *clientSuite) TestCreateWithoutEnvOmitsRuntimeConf() {
 	s.Require().NoError(s.client.Create(context.Background(), wsName, Spec{Image: testImg}))
 	s.NotContains(s.args(), flagRuntime)
@@ -363,7 +399,7 @@ func recordRuntimeConf(args []string) error {
 	}
 	environ := map[string]string{}
 	for _, kv := range os.Environ() {
-		if k, v, ok := strings.Cut(kv, "="); ok && strings.HasPrefix(k, envConfPrefix) {
+		if k, v, ok := strings.Cut(kv, "="); ok && isConfVar(k) {
 			environ[k] = v
 		}
 	}
@@ -373,6 +409,10 @@ func recordRuntimeConf(args []string) error {
 	}
 	// #nosec G703 -- path is set by the parent test to a private temporary directory.
 	return os.WriteFile(os.Getenv("DEVSY_MSB_TEST_RECORD")+".runtime", data, 0o600)
+}
+
+func isConfVar(name string) bool {
+	return strings.HasPrefix(name, envConfPrefix) || strings.HasPrefix(name, labelConfPrefix)
 }
 
 func dispatchHelper(args []string, mode string) int {
