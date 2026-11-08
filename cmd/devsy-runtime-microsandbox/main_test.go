@@ -121,7 +121,9 @@ func (s *entrypointSuite) TestRealPluginReportsInvalidOption() {
 	s.NotContains(err.Error(), "rpc error: code = InvalidArgument desc = rpc error")
 	stream, err := client.Exec(s.ctx())
 	s.Require().NoError(err)
-	s.Require().NoError(stream.Send(execStart("echo")))
+	if err := stream.Send(execStart("echo")); err != nil {
+		s.Require().ErrorIs(err, io.EOF)
+	}
 	_, err = stream.Recv()
 	s.ErrorContains(err, "invalid MICROSANDBOX_MEMORY")
 }
