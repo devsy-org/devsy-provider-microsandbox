@@ -8,6 +8,7 @@ import (
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/config"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/server"
+	"github.com/devsy-org/devsy-runtime-sdk/runtimev1"
 	sdkserver "github.com/devsy-org/devsy-runtime-sdk/server"
 	microsandbox "github.com/superradcompany/microsandbox/sdk/go"
 )
@@ -40,22 +41,25 @@ func run(args []string) int {
 }
 
 func serve() int {
-	cfg, err := config.Load(os.Getenv)
+	driver, err := newDriver()
 	if err != nil {
+		// The message goes to stderr for logs and to every RPC so Devsy shows it.
 		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	if cfg.MSBPath != "" {
-		if _, err := resolvePair(cfg, microsandbox.ResolveRuntime); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
-	}
-	driver, err := server.New(msb.Client{Binary: cfg.MSBPath}, cfg, version)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
+		driver = server.NewConfigError(err)
 	}
 	sdkserver.Serve(driver)
 	return 0
+}
+
+func newDriver() (runtimev1.RuntimeDriverServer, error) {
+	cfg, err := config.Load(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.MSBPath != "" {
+		if _, err := resolvePair(cfg, microsandbox.ResolveRuntime); err != nil {
+			return nil, err
+		}
+	}
+	return server.New(msb.Client{Binary: cfg.MSBPath}, cfg, version)
 }
