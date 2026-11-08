@@ -82,7 +82,7 @@ func (s *entrypointSuite) TestRealPluginHandshakeAndLogs() {
 	s.NoError(runtimev1.ValidateInfo(info))
 	s.Equal("test", info.GetDriverVersion())
 	s.True(info.GetCapabilities().GetLogs())
-	logs, err := client.Logs(s.ctx(), &runtimev1.LogsRequest{WorkspaceId: "workspace"})
+	logs, err := client.Logs(s.ctx(), &runtimev1.LogsRequest{WorkspaceId: recreateWorkspaceID})
 	s.Require().NoError(err)
 	chunk, err := logs.Recv()
 	s.Require().NoError(err)
@@ -111,6 +111,29 @@ func (s *entrypointSuite) TestRealPluginNativeBackendFailure() {
 	s.Nil(frame)
 	s.Equal(codes.Internal, status.Code(err))
 	s.ErrorContains(err, "sandbox not found: devsy-workspace")
+}
+
+func (s *entrypointSuite) TestRealPluginReportsInvalidOption() {
+	client := s.pluginClientWithEnv("MICROSANDBOX_MEMORY=abc")
+	_, err := client.Info(s.ctx(), &runtimev1.InfoRequest{})
+	s.Equal(codes.InvalidArgument, status.Code(err))
+	s.ErrorContains(err, "invalid MICROSANDBOX_MEMORY")
+	s.NotContains(err.Error(), "rpc error: code = InvalidArgument desc = rpc error")
+	stream, err := client.Exec(s.ctx())
+	s.Require().NoError(err)
+	s.Require().NoError(stream.Send(execStart("echo")))
+	_, err = stream.Recv()
+	s.ErrorContains(err, "invalid MICROSANDBOX_MEMORY")
+}
+
+func (s *entrypointSuite) TestRealPluginReportsIncompatibleWorkspacePolicy() {
+	client := s.pluginClientWithEnv(
+		"MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION=off",
+		"MICROSANDBOX_WORKSPACE_HOST_PERMISSIONS=mirror",
+	)
+	_, err := client.Find(s.ctx(), &runtimev1.FindRequest{WorkspaceId: recreateWorkspaceID})
+	s.Equal(codes.InvalidArgument, status.Code(err))
+	s.NotContains(err.Error(), "Unrecognized")
 }
 
 func (s *entrypointSuite) pluginClient() runtimev1.RuntimeDriverClient {
@@ -169,7 +192,7 @@ func (s *entrypointSuite) ctx() context.Context {
 func execStart(command string) *runtimev1.ExecClientMessage {
 	return &runtimev1.ExecClientMessage{
 		Payload: &runtimev1.ExecClientMessage_Start{
-			Start: &runtimev1.ExecStart{WorkspaceId: "workspace", Argv: []string{command}},
+			Start: &runtimev1.ExecStart{WorkspaceId: recreateWorkspaceID, Argv: []string{command}},
 		},
 	}
 }
