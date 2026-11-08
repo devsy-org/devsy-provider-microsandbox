@@ -2,6 +2,7 @@
 package msb
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -51,6 +52,11 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 	if err := c.ensureVolumes(ctx, spec.Mounts); err != nil {
 		return err
 	}
+	mounts, err := resolveHostMounts(spec.Mounts)
+	if err != nil {
+		return err
+	}
+	spec.Mounts = mounts
 	conf, err := writeEnvConf(spec.Env, spec.Labels)
 	if err != nil {
 		return err
@@ -62,9 +68,10 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 // Find returns nil only when msb reports that the VM does not exist.
 func (c Client) Find(ctx context.Context, sandbox string) (*Info, error) {
 	// #nosec G204 -- args are a resolved binary path and a derived sandbox name
-	out, err := exec.CommandContext(ctx, c.binary(), "inspect", sandbox, "--format", "json").
-		Output()
-	if err != nil {
+	cmd := exec.CommandContext(ctx, c.binary(), "inspect", sandbox, "--format", "json")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("inspect microsandbox VM %q: %w", sandbox, ctx.Err())
 		}
@@ -72,12 +79,13 @@ func (c Client) Find(ctx context.Context, sandbox string) (*Info, error) {
 		// failure (permission, crash, bad invocation) is a real error to surface,
 		// so callers do not mistake it for an absent sandbox.
 		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) && strings.Contains(string(exitErr.Stderr), "not found") {
+		text := strings.TrimSpace(stderr.String())
+		if errors.As(err, &exitErr) && strings.Contains(text, "not found") {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("inspect microsandbox VM %q: %w", sandbox, err)
+		return nil, fmt.Errorf("inspect microsandbox VM %q: %s: %w", sandbox, text, err)
 	}
-	info, err := parseInfo(out)
+	info, err := parseInfo(stdout.Bytes())
 	if err != nil {
 		versionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()

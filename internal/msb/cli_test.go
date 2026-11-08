@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -67,7 +69,8 @@ func (s *clientSuite) TestFindStates() {
 				s.NoError(err)
 				s.Nil(info)
 			case testDenied:
-				s.Error(err)
+				s.ErrorContains(err, "exit status 1")
+				s.ErrorContains(err, testDenied)
 				s.Nil(info)
 			case testInvalid:
 				s.ErrorContains(err, "parse microsandbox inspect output")
@@ -261,6 +264,36 @@ func (s *clientSuite) TestCreatePassesLabelsOffArgv() {
 	s.Equal(testUser, got.Environ["DEVSY_MSB_LABEL_1"])
 }
 
+func (s *clientSuite) TestCreateResolvesSymlinkedBindSources() {
+	root := s.T().TempDir()
+	target := filepath.Join(root, "target")
+	s.Require().NoError(os.Mkdir(target, 0o750))
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(target, link); err != nil {
+		if runtime.GOOS == testWindows && deniedSymlink(err) {
+			s.T().Skip("creating symlinks requires privilege on this Windows account")
+		}
+		s.Require().NoError(err)
+	}
+	missing := filepath.Join(root, "missing")
+	resolvedReal, err := filepath.EvalSymlinks(target)
+	s.Require().NoError(err)
+	mounts := []Mount{
+		{Source: link, Target: "/workspaces/link"},
+		{Source: missing, Target: "/workspaces/missing"},
+		{Volume: testVolume, Target: link},
+	}
+	s.T().Setenv("DEVSY_MSB_TEST_MODE", "exists")
+	s.Require().NoError(s.client.Create(
+		context.Background(), wsName, Spec{Image: testImg, Mounts: mounts},
+	))
+	args := s.args()
+	s.True(hasFlagValue(args, "--mount-dir", resolvedReal+":/workspaces/link"), "%v", args)
+	s.True(hasFlagValue(args, "--mount-dir", missing+":/workspaces/missing"), "%v", args)
+	s.True(hasFlagValue(args, "--mount-named", testVolume+":"+link), "%v", args)
+	s.Equal(link, mounts[0].Source, "caller mounts must not be modified")
+}
+
 func (s *clientSuite) TestCreateWithoutEnvOmitsRuntimeConf() {
 	s.Require().NoError(s.client.Create(context.Background(), wsName, Spec{Image: testImg}))
 	s.NotContains(s.args(), flagRuntime)
@@ -409,6 +442,13 @@ func recordRuntimeConf(args []string) error {
 	}
 	// #nosec G703 -- path is set by the parent test to a private temporary directory.
 	return os.WriteFile(os.Getenv("DEVSY_MSB_TEST_RECORD")+".runtime", data, 0o600)
+}
+
+// errorPrivilegeNotHeld is the Windows error for symlink creation without privilege.
+const errorPrivilegeNotHeld = syscall.Errno(1314)
+
+func deniedSymlink(err error) bool {
+	return errors.Is(err, fs.ErrPermission) || errors.Is(err, errorPrivilegeNotHeld)
 }
 
 func isConfVar(name string) bool {

@@ -1,7 +1,11 @@
 package msb
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -56,6 +60,28 @@ func mountOptions(m Mount) []string {
 		)
 	}
 	return options
+}
+
+// resolveHostMounts returns mounts whose bind sources have symlinks resolved,
+// because msb rejects a host path that goes through one (for example /tmp on
+// macOS). A source that does not exist is kept so msb reports it. Guest paths
+// are never touched. The input slice is not modified.
+func resolveHostMounts(mounts []Mount) ([]Mount, error) {
+	resolved := slices.Clone(mounts)
+	for i, m := range resolved {
+		if m.Source == "" || m.Tmpfs || m.Volume != "" {
+			continue
+		}
+		path, err := filepath.EvalSymlinks(m.Source)
+		switch {
+		case err == nil:
+			resolved[i].Source = path
+		case errors.Is(err, fs.ErrNotExist):
+		default:
+			return nil, fmt.Errorf("resolve bind mount host path %q: %w", m.Source, err)
+		}
+	}
+	return resolved, nil
 }
 
 func bindMountSpec(m Mount) string {
