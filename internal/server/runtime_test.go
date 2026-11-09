@@ -170,7 +170,7 @@ func (s *runtimeSuite) TestRunImageOwnerAndSnapshot() {
 	s.Equal(s.client.prepared.Reference(), s.client.created.Image)
 	s.Equal("service", s.client.created.User)
 	s.Equal(&msb.MountOwner{UID: 1000, GID: 1001}, s.client.created.Mounts[0].Policy.Owner)
-	s.Equal("1000:1001", s.client.created.Labels[workspaceRemoteUserLabel])
+	s.Equal("1000:1001", s.client.created.GeneratedLabels[workspaceRemoteUserLabel])
 }
 
 func (s *runtimeSuite) TestRunImageNeverReplacesExistingVM() {

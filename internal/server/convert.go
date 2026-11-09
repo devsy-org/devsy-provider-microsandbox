@@ -35,6 +35,7 @@ func (r *Runtime) buildSpec(ctx context.Context, req *runtimev1.RunImageRequest)
 	if err != nil {
 		return msb.Spec{}, err
 	}
+	spec.GeneratedLabels = r.generatedLabels(req)
 	spec.Mounts = mounts
 	if err := applyResources(&spec, req.GetHostRequirements()); err != nil {
 		return msb.Spec{}, err
@@ -173,7 +174,7 @@ func resolveOwner(
 	}
 	if owner != nil {
 		workspace.Policy.Owner = owner
-		spec.Labels[workspaceRemoteUserLabel] = effectiveRemoteUser(req)
+		spec.GeneratedLabels[workspaceRemoteUserLabel] = effectiveRemoteUser(req)
 	}
 	return nil
 }
@@ -271,6 +272,7 @@ func applyMountOptions(options []string, mount *msb.Mount) error {
 	return nil
 }
 
+// labels retains request values for redaction before generated labels override keys.
 func (r *Runtime) labels(req *runtimev1.RunImageRequest) (map[string]string, error) {
 	labels := make(map[string]string)
 	for _, label := range req.GetLabels() {
@@ -280,11 +282,16 @@ func (r *Runtime) labels(req *runtimev1.RunImageRequest) (map[string]string, err
 		}
 		labels[key] = value
 	}
+	return labels, nil
+}
+
+// generatedLabels builds public process and mount metadata independently of request labels.
+func (r *Runtime) generatedLabels(req *runtimev1.RunImageRequest) map[string]string {
+	labels := map[string]string{workspaceMountContractLabel: r.mountContract()}
 	if req.GetUser() != "" {
 		labels[userLabel] = req.GetUser()
 	}
-	labels[workspaceMountContractLabel] = r.mountContract()
-	return labels, nil
+	return labels
 }
 
 func containerMounts(mounts []msb.Mount) []*runtimev1.ContainerMount {
