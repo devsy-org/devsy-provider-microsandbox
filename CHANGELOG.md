@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.0...v1.1.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* treat empty runtime path options as unset ([#76](https://github.com/devsy-org/devsy-provider-microsandbox/issues/76)) ([e426890](https://github.com/devsy-org/devsy-provider-microsandbox/commit/e4268901995003f33be230ef111d44e9a2125962))
+
 ## [1.1.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.6...v1.1.0) (2026-11-09)
 
 
