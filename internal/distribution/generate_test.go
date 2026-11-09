@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"text/template"
 
@@ -188,8 +189,18 @@ func (s *distributionSuite) TestLocalManifestPinsHostExecutable() {
 	if runtime.GOOS == "windows" || (runtime.GOOS == "darwin" && runtime.GOARCH != "arm64") {
 		s.T().Skip("local helper does not support this host")
 	}
-	root := s.T().TempDir()
+	root, err := os.MkdirTemp("/tmp", "msb-")
+	s.Require().NoError(err)
 	executable := filepath.Join(root, "adapter")
+	s.T().Cleanup(func() {
+		_ = os.Remove(executable)
+		_ = os.Remove(filepath.Join(root, "dist", "local", "provider.yaml"))
+		digest := fmt.Sprintf("%x", sha256.Sum256([]byte("adapter bytes")))
+		_ = os.Remove(filepath.Join(root, "dist", "local", "devsy-runtime-microsandbox-"+digest))
+		_ = os.Remove(filepath.Join(root, "dist", "local"))
+		_ = os.Remove(filepath.Join(root, "dist"))
+		_ = os.Remove(root)
+	})
 	s.Require().NoError(os.WriteFile(executable, []byte("adapter bytes"), 0o600))
 	cfg := LocalConfig{
 		Binary:    executable,
@@ -215,6 +226,15 @@ func (s *distributionSuite) TestLocalManifestPinsHostExecutable() {
 	copied, err := os.ReadFile(item.Path)
 	s.Require().NoError(err)
 	s.Equal([]byte("adapter bytes"), copied)
+}
+
+func (s *distributionSuite) TestSocketPathLimit() {
+	if runtime.GOOS == "windows" {
+		s.T().Skip("Unix socket paths only")
+	}
+	root := string(filepath.Separator) + "m"
+	s.NoError(validateSocketHome(root))
+	s.ErrorContains(validateSocketHome(filepath.Join(root, strings.Repeat("x", 108))), "too long")
 }
 
 func (s *distributionSuite) artifacts() string {

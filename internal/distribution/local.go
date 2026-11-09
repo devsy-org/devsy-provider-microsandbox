@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 )
 
 // LocalConfig describes the existing host executable and runtime pair.
@@ -74,17 +75,38 @@ func validateLocal(cfg LocalConfig) error {
 			return fmt.Errorf("%s must be a nonempty regular file", path)
 		}
 	}
-	return validateHost()
+	if err := validateHost(); err != nil {
+		return err
+	}
+	return validateSocketHome(filepath.Join(filepath.Dir(cfg.Directory), "m"))
 }
 
 func validateHost() error {
-	if runtime.GOOS == "darwin" && runtime.GOARCH == archARM64 {
+	if runtime.GOOS == osDarwin && runtime.GOARCH == archARM64 {
 		return nil
 	}
 	if runtime.GOOS == osLinux && (runtime.GOARCH == archAMD64 || runtime.GOARCH == archARM64) {
 		return nil
 	}
 	return fmt.Errorf("unsupported host: %s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
+func validateSocketHome(home string) error {
+	capacity := 108
+	if runtime.GOOS == osDarwin {
+		capacity = 104
+	}
+	// MicroSandbox also creates a legacy control socket with a 32 byte hex ID.
+	socket := filepath.Join(home, "run", "agent", strings.Repeat("0", 32)+".control.sock")
+	if len(socket) >= capacity {
+		return fmt.Errorf(
+			"runtime home is too long for Unix sockets: %s (%d bytes, limit %d); use a shorter checkout path",
+			home,
+			len(socket),
+			capacity-1,
+		)
+	}
+	return nil
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) (err error) {

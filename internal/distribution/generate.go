@@ -21,6 +21,7 @@ var manifestTemplate string
 
 const (
 	osLinux   = "linux"
+	osDarwin  = "darwin"
 	archAMD64 = "amd64"
 	archARM64 = "arm64"
 )
@@ -51,7 +52,7 @@ func Generate(tag, directory string) (Metadata, error) {
 	binaries := []binary{
 		{OS: osLinux, Arch: archAMD64},
 		{OS: osLinux, Arch: archARM64},
-		{OS: "darwin", Arch: archARM64},
+		{OS: osDarwin, Arch: archARM64},
 		{OS: "windows", Arch: archAMD64},
 	}
 	var checksums bytes.Buffer
