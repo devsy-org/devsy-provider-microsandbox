@@ -1,4 +1,4 @@
-name: microsandbox
+name: {{if .Local}}microsandbox-local{{else}}microsandbox{{end}}
 version: {{.Tag}}
 icon: https://dl.devsy.sh/assets/devsy.svg
 home: https://github.com/devsy-org/devsy-provider-microsandbox
@@ -20,10 +20,14 @@ optionGroups:
       - INACTIVITY_TIMEOUT
     name: "Advanced Options"
 options:
-  MSB_PATH:
-    description: "Path to the MicroSandbox executable. Set together with MSB_LIBKRUNFW_PATH."
+{{if .Local}}  MSB_HOME:
+    default: {{.Local.Home}}
+{{end}}  MSB_PATH:
+    description: "Path to the MicroSandbox executable. Set together with MSB_LIBKRUNFW_PATH."{{if .Local}}
+    default: {{.Local.MSB}}{{end}}
   MSB_LIBKRUNFW_PATH:
-    description: "Path to the MicroSandbox firmware library. Set together with MSB_PATH."
+    description: "Path to the MicroSandbox firmware library. Set together with MSB_PATH."{{if .Local}}
+    default: {{.Local.Firmware}}{{end}}
   MICROSANDBOX_MEMORY:
     description: "Guest memory limit in MiB. Empty uses the runtime default."
     default: "2048"
@@ -75,7 +79,7 @@ agent:
     DEVSY_RUNTIME_DRIVER:
 {{range .Binaries}}      - os: {{.OS}}
         arch: {{.Arch}}
-        path: https://github.com/devsy-org/devsy-provider-microsandbox/releases/download/{{$.Tag}}/{{.Name}}
+        path: {{if $.Local}}{{.Path}}{{else}}https://github.com/devsy-org/devsy-provider-microsandbox/releases/download/{{$.Tag}}/{{.Name}}{{end}}
         name: {{.Name}}
         checksum: {{.Checksum}}
 {{end}}exec:

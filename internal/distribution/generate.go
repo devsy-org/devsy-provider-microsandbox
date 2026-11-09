@@ -19,11 +19,18 @@ import (
 //go:embed provider.yaml.tmpl
 var manifestTemplate string
 
+const (
+	osLinux   = "linux"
+	archAMD64 = "amd64"
+	archARM64 = "arm64"
+)
+
 type binary struct {
 	OS       string
 	Arch     string
 	Name     string
 	Checksum string
+	Path     string
 }
 
 // Metadata contains the manifest and executable checksums for one release.
@@ -42,10 +49,10 @@ func Generate(tag, directory string) (Metadata, error) {
 		return Metadata{}, fmt.Errorf("invalid release tag: %w", err)
 	}
 	binaries := []binary{
-		{OS: "linux", Arch: "amd64"},
-		{OS: "linux", Arch: "arm64"},
-		{OS: "darwin", Arch: "arm64"},
-		{OS: "windows", Arch: "amd64"},
+		{OS: osLinux, Arch: archAMD64},
+		{OS: osLinux, Arch: archARM64},
+		{OS: "darwin", Arch: archARM64},
+		{OS: "windows", Arch: archAMD64},
 	}
 	var checksums bytes.Buffer
 	for index := range binaries {
@@ -89,7 +96,13 @@ func fileChecksum(path string) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
+type localDefaults struct{ Home, MSB, Firmware string }
+
 func renderManifest(tag string, binaries []binary) ([]byte, error) {
+	return render(tag, binaries, nil)
+}
+
+func render(tag string, binaries []binary, local *localDefaults) ([]byte, error) {
 	parsed, err := template.New("provider").Option("missingkey=error").Parse(manifestTemplate)
 	if err != nil {
 		return nil, err
@@ -98,7 +111,8 @@ func renderManifest(tag string, binaries []binary) ([]byte, error) {
 	err = parsed.Execute(&output, struct {
 		Tag      string
 		Binaries []binary
-	}{Tag: tag, Binaries: binaries})
+		Local    *localDefaults
+	}{Tag: tag, Binaries: binaries, Local: local})
 	if err != nil {
 		return nil, err
 	}

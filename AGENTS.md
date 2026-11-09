@@ -39,6 +39,10 @@ Not relevant here. This provider does not build or serve the Devsy agent binary.
 
 Unit tests use `testify/suite` and run on Linux, macOS, and Windows in CI. They need no `msb` runtime.
 
+### Local provider workflow
+
+Set `MSB_PATH` and `MSB_LIBKRUNFW_PATH` to an existing matching pair of absolute paths. Run `unset DEVSY_HOME` and `mise run build:provider:dev`. Follow the printed commands to install `microsandbox-local`, then run a workspace as shown in the README. Rebuild and follow the refresh commands after changes. The helper supports the host platform only and keeps its runtime home under `dist/m`. Use a short checkout path for Unix sockets. Core's `--disable-daemon` strips provider options, including these paths.
+
 ### Relocated pinned runtime test
 
 `TestRelocatedPinnedRuntime` in `cmd/devsy-runtime-microsandbox` runs on linux/amd64 only. It downloads its own pinned runtime and firmware, so it needs no `msb` install. It needs `DEVSY_QUALIFY_RUNTIME=1` and `DEVSY_ADAPTER_BINARY`, the absolute path of a built provider executable (`mise run build`). CI runs it in the `Pinned runtime relocation` job.
@@ -47,7 +51,7 @@ Unit tests use `testify/suite` and run on Linux, macOS, and Windows in CI. They 
 
 These tests skip unless `DEVSY_MSB_CONFORMANCE=1` or `DEVSY_QUALIFY_RUNTIME=1` is set. They need the matching `msb` 0.7.13 executable and firmware, with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`, plus Hypervisor.framework on a Mac or accessible KVM on Linux. Hosted CI runners lack KVM, so CI does not run them.
 
-Real VM conformance:
+Run real VM conformance locally before a release and when the msb runtime changes:
 
 ```sh
 unset DEVSY_HOME
