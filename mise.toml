@@ -57,3 +57,61 @@ run = "go build -o dist/devsy-runtime-microsandbox ./cmd/devsy-runtime-microsand
 [tasks.pre-commit]
 description = "Run all prek hooks"
 run = "prek run --all-files"
+
+[tasks."dev:runtime"]
+description = "Download the pinned MicroSandbox runtime pair into dist/dev/runtime"
+run = '''
+set -eu
+version=0.7.13
+case "$(go env GOOS)-$(go env GOARCH)" in
+  linux-amd64) asset=linux-x86_64 sum=c41aeefc050e97f42cd55ce55cc139efc13c6ee2dc371e8d30c325a305a5c3b1 ;;
+  linux-arm64) asset=linux-aarch64 sum=bd95fbc51954c2c20077c782262157bf5aed17b3717c5d4494d9d34035f3432c ;;
+  darwin-arm64) asset=darwin-aarch64 sum=5eb53ca1d6beb36caa64d19602284b9ce37872eff340a8db0542ab91b5808c96 ;;
+  *) echo "No pinned MicroSandbox $version runtime for this platform." >&2; exit 1 ;;
+esac
+runtime=dist/dev/runtime
+if [ -x "$runtime/msb" ] && [ "$("$runtime/msb" --version)" = "msb $version" ]; then
+  echo "MicroSandbox $version is already in $runtime"
+  exit 0
+fi
+if command -v sha256sum >/dev/null; then check="sha256sum -c -"; else check="shasum -a 256 -c -"; fi
+mkdir -p dist/dev
+archive="dist/dev/microsandbox-$version-$asset.tar.gz"
+curl -fsSL --retry 3 -o "$archive" \
+  "https://github.com/superradcompany/microsandbox/releases/download/v$version/microsandbox-$asset.tar.gz"
+echo "$sum  $archive" | $check
+rm -rf "$runtime.tmp"
+mkdir -p "$runtime.tmp"
+tar -xzf "$archive" -C "$runtime.tmp"
+rm -f "$archive"
+rm -rf "$runtime"
+mv "$runtime.tmp" "$runtime"
+"$runtime/msb" --version
+'''
+
+[tasks."dev:provider"]
+description = "Build the microsandbox-dev provider into dist/dev"
+run = '''
+set -eu
+# Host paths default to this checkout; set them when building inside a container.
+host_root="${DEVSY_HOST_WORKSPACE:-$PWD}/dist/dev"
+msb_home="${DEVSY_HOST_HOME:-$HOME}/.microsandbox-dev"
+out=dist/dev
+if [ ! -x "$out/runtime/msb" ]; then
+  echo "Run mise run dev:runtime first." >&2
+  exit 1
+fi
+firmware="$(cd "$out/runtime" && ls libkrunfw* | head -n 1)"
+revision="$(git rev-parse --short HEAD)"
+git diff --quiet HEAD -- || revision="$revision.dirty"
+version="v0.0.0-dev+$revision"
+go build -trimpath -ldflags "-X main.version=$version" \
+  -o "$out/.devsy-runtime-microsandbox.tmp" ./cmd/devsy-runtime-microsandbox
+go run ./cmd/dev-provider -build "$out/.devsy-runtime-microsandbox.tmp" -version "$version" \
+  -root "$host_root" -firmware "$firmware" -msb-home "$msb_home" -output "$out/provider.yaml"
+echo "Built microsandbox-dev $version. On the host, install it with:"
+echo "  devsy provider set-source microsandbox-dev $host_root/provider.yaml"
+echo "or, the first time:"
+echo "  devsy provider add --use=false $host_root/provider.yaml"
+echo "  devsy provider init microsandbox-dev"
+'''
