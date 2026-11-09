@@ -45,6 +45,8 @@ devsy provider init microsandbox-local
 
 This external provider requires msb 0.7.13 or newer. The built-in driver in Devsy core requires 0.7.2 for provisioning and 0.7.7 for recreate. Core currently strips provider options with `devsy up --disable-daemon`, so runtime paths are lost with that flag. Real VM tests need Hypervisor.framework or KVM and are not run on hosted CI. Run the conformance command in [AGENTS.md](AGENTS.md#real-vm-tests) locally before a release and when the runtime changes.
 
+Creation errors redact request environment and label values, including devcontainer metadata and short values. Provider generated user and workspace mount labels stay readable unless the same value also appears in a request environment variable or label.
+
 ## License
 
 [MPL-2.0](LICENSE).

@@ -16,13 +16,16 @@ type Spec struct {
 	CPUs          uint8
 	Env           map[string]string
 	Labels        map[string]string
-	Ephemeral     bool
-	IdleTimeout   time.Duration
-	Mounts        []Mount
-	MaxMemory     uint32
-	MaxCPUs       uint8
-	BlockEgress   bool
-	RootDiskGB    uint32
+	// GeneratedLabels contains public operational metadata set by the provider,
+	// never request labels or values derived from guest environment variables.
+	GeneratedLabels map[string]string
+	Ephemeral       bool
+	IdleTimeout     time.Duration
+	Mounts          []Mount
+	MaxMemory       uint32
+	MaxCPUs         uint8
+	BlockEgress     bool
+	RootDiskGB      uint32
 }
 
 // Mount describes a MicroSandbox bind, named-volume, or tmpfs mount.

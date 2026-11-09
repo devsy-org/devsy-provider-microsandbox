@@ -57,7 +57,7 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 		return err
 	}
 	spec.Mounts = mounts
-	conf, err := writeEnvConf(spec.Env, spec.Labels)
+	conf, err := writeEnvConf(spec)
 	if err != nil {
 		return err
 	}

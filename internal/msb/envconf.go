@@ -3,6 +3,7 @@ package msb
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -21,6 +22,7 @@ const (
 type envConf struct {
 	path    string
 	environ []string
+	secrets []string
 }
 
 // writeEnvConf writes a private --runtime-conf file mapping each guest variable
@@ -28,11 +30,14 @@ type envConf struct {
 // hold the values. msb substitutes references once and has no escape for "${",
 // so values go through the environment instead of the file. The file holds no
 // secrets. Empty env and labels yield a zero envConf.
-func writeEnvConf(env, labels map[string]string) (envConf, error) {
-	if len(env) == 0 && len(labels) == 0 {
+func writeEnvConf(spec Spec) (envConf, error) {
+	labels := make(map[string]string, len(spec.Labels)+len(spec.GeneratedLabels))
+	maps.Copy(labels, spec.Labels)
+	maps.Copy(labels, spec.GeneratedLabels)
+	if len(spec.Env) == 0 && len(labels) == 0 {
 		return envConf{}, nil
 	}
-	envRefs, envVars := confRefs(envConfPrefix, env)
+	envRefs, envVars := confRefs(envConfPrefix, spec.Env)
 	labelRefs, labelVars := confRefs(labelConfPrefix, labels)
 	conf := map[string]any{}
 	if len(envRefs) > 0 {
@@ -45,7 +50,15 @@ func writeEnvConf(env, labels map[string]string) (envConf, error) {
 	if err != nil {
 		return envConf{}, err
 	}
-	return envConf{path: path, environ: append(envVars, labelVars...)}, nil
+	secrets := make([]string, 0, len(spec.Env)+len(spec.Labels))
+	for _, value := range spec.Env {
+		secrets = append(secrets, value)
+	}
+	// Keep request values even when generated metadata overrides the same key.
+	for _, value := range spec.Labels {
+		secrets = append(secrets, value)
+	}
+	return envConf{path: path, environ: append(envVars, labelVars...), secrets: secrets}, nil
 }
 
 func writeConfFile(conf map[string]any) (string, error) {
@@ -95,13 +108,7 @@ func (e envConf) remove() {
 
 // values returns the secret values for error redaction.
 func (e envConf) values() []string {
-	out := make([]string, 0, len(e.environ))
-	for _, kv := range e.environ {
-		if _, v, ok := strings.Cut(kv, "="); ok {
-			out = append(out, v)
-		}
-	}
-	return out
+	return e.secrets
 }
 
 // redactSecrets masks all values in one pass, longest first, so a value that is
