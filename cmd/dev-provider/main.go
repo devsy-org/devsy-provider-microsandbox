@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -63,6 +64,27 @@ func checkRuntime(cfg distribution.LocalConfig, root string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("runtime check: %w: %s", err, out)
+	}
+	return validateRuntimeCheck(out)
+}
+
+func validateRuntimeCheck(data []byte) error {
+	var result struct {
+		SchemaVersion int    `json:"schemaVersion"`
+		Version       string `json:"version"`
+		Compatible    *bool  `json:"compatible"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return fmt.Errorf("parse runtime check: %w", err)
+	}
+	if result.SchemaVersion != 1 || result.Version == "" || result.Compatible == nil {
+		return errors.New("invalid runtime check response")
+	}
+	if !*result.Compatible {
+		return fmt.Errorf(
+			"MicroSandbox runtime %s is incompatible; version 0.7.13 or newer is required",
+			result.Version,
+		)
 	}
 	return nil
 }
