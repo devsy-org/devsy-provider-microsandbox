@@ -149,13 +149,7 @@ func (s *entrypointSuite) pluginClientWithEnv(extraEnv ...string) runtimev1.Runt
 	if runtime.GOOS == "windows" {
 		fixture += ".exe"
 	}
-	self, err := os.Executable()
-	s.Require().NoError(err)
-	// #nosec G304 -- copy only this running test executable
-	data, err := os.ReadFile(self)
-	s.Require().NoError(err)
-	// #nosec G306 G703 -- fixed msb filename in a private testing-owned directory; must be executable
-	s.Require().NoError(os.WriteFile(fixture, data, 0o700))
+	s.writeFixture(fixture)
 	cmd := exec.Command(executable, "serve")
 	cmd.Env = append(
 		os.Environ(),
@@ -184,6 +178,17 @@ func (s *entrypointSuite) pluginClientWithEnv(extraEnv ...string) runtimev1.Runt
 	return result
 }
 
+func (s *entrypointSuite) writeFixture(path string) {
+	s.T().Helper()
+	self, err := os.Executable()
+	s.Require().NoError(err)
+	// #nosec G304 -- copy only this running test executable
+	data, err := os.ReadFile(self)
+	s.Require().NoError(err)
+	// #nosec G306 G703 -- fixed msb filename in a private testing-owned directory; must be executable
+	s.Require().NoError(os.WriteFile(path, data, 0o700))
+}
+
 func (s *entrypointSuite) ctx() context.Context {
 	s.T().Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -200,6 +205,15 @@ func execStart(command string) *runtimev1.ExecClientMessage {
 }
 
 func msbFixture(args []string) int {
+	if os.Getenv("DEVSY_MSB_ENTRYPOINT_CHECK_PATH_ENV") == "1" {
+		for _, name := range []string{"MSB_PATH", "MSB_LIBKRUNFW_PATH", "MSB_CONFIG_PATH", "MSB_AGENTD_PATH"} {
+			if _, ok := os.LookupEnv(name); ok {
+				_, _ = fmt.Fprintln(os.Stderr, "unexpected runtime path variable: "+name)
+				return 1
+			}
+		}
+	}
+
 	if len(args) == 0 {
 		return 2
 	}

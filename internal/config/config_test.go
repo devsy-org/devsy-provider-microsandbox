@@ -1,11 +1,17 @@
 package config
 
 import (
+	"os"
 	"testing"
 	"time"
 
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
 	"github.com/stretchr/testify/suite"
+)
+
+const (
+	testMSBPathOption  = "MSB_PATH"
+	testFirmwareOption = "MSB_LIBKRUNFW_PATH"
 )
 
 type configSuite struct{ suite.Suite }
@@ -14,17 +20,45 @@ func TestConfig(t *testing.T) { suite.Run(t, new(configSuite)) }
 
 func (s *configSuite) TestRuntimePair() {
 	for _, env := range []map[string]string{
-		{"MSB_PATH": "/runtime/msb"},
-		{"MSB_LIBKRUNFW_PATH": "/runtime/firmware"},
+		{testMSBPathOption: "/runtime/msb"},
+		{testFirmwareOption: "/runtime/firmware"},
 	} {
 		_, err := Load(func(k string) string { return env[k] })
 		s.ErrorContains(err, "must be set together")
 	}
-	env := map[string]string{"MSB_PATH": "/runtime/msb", "MSB_LIBKRUNFW_PATH": "/runtime/firmware"}
+	env := map[string]string{
+		testMSBPathOption:  "/runtime/msb",
+		testFirmwareOption: "/runtime/firmware",
+	}
 	cfg, err := Load(func(k string) string { return env[k] })
 	s.Require().NoError(err)
-	s.Equal(env["MSB_PATH"], cfg.MSBPath)
-	s.Equal(env["MSB_LIBKRUNFW_PATH"], cfg.LibkrunfwPath)
+	s.Equal(env[testMSBPathOption], cfg.MSBPath)
+	s.Equal(env[testFirmwareOption], cfg.LibkrunfwPath)
+}
+
+func (s *configSuite) TestBlankRuntimePair() {
+	for _, value := range []string{"", " \t\n"} {
+		s.Run(value, func() {
+			cfg, err := Load(func(string) string { return value })
+			s.Require().NoError(err)
+			s.Empty(cfg.MSBPath)
+			s.Empty(cfg.LibkrunfwPath)
+		})
+	}
+	for _, name := range []string{testMSBPathOption, testFirmwareOption} {
+		s.Run(name, func() {
+			_, err := Load(func(key string) string {
+				if key == name {
+					return " \t"
+				}
+				if key == testMSBPathOption || key == testFirmwareOption {
+					return "/runtime/pair"
+				}
+				return ""
+			})
+			s.ErrorContains(err, "must be set together")
+		})
+	}
 }
 
 func (s *configSuite) TestDefaults() {
@@ -81,4 +115,42 @@ func (s *configSuite) TestInvalidOptions() {
 			s.Error(err)
 		})
 	}
+}
+
+func (s *configSuite) TestLoadEnvironment() {
+	for _, value := range []string{"", " \t\n", " /runtime/with spaces "} {
+		s.Run(value, func() {
+			for _, name := range []string{
+				testMSBPathOption, testFirmwareOption, "MSB_HOME", "MSB_CONFIG_PATH", "MSB_AGENTD_PATH",
+			} {
+				s.T().Setenv(name, value)
+			}
+			s.T().Setenv("MSB_API_KEY", "")
+			cfg, err := LoadEnvironment()
+			s.Require().NoError(err)
+			for _, name := range []string{
+				testMSBPathOption, testFirmwareOption, "MSB_HOME", "MSB_CONFIG_PATH", "MSB_AGENTD_PATH",
+			} {
+				got, present := os.LookupEnv(name)
+				if value == " /runtime/with spaces " {
+					s.True(present)
+					s.Equal(value, got)
+				} else {
+					s.False(present, name)
+				}
+			}
+			_, present := os.LookupEnv("MSB_API_KEY")
+			s.True(present)
+			s.Equal(os.Getenv(testMSBPathOption), cfg.MSBPath)
+			s.Equal(os.Getenv(testFirmwareOption), cfg.LibkrunfwPath)
+		})
+	}
+}
+
+func (s *configSuite) TestInvalidEnvironmentDoesNotMutate() {
+	s.T().Setenv(testMSBPathOption, " ")
+	s.T().Setenv(testFirmwareOption, "/runtime/firmware")
+	_, err := LoadEnvironment()
+	s.ErrorContains(err, "must be set together")
+	s.Equal(" ", os.Getenv(testMSBPathOption))
 }

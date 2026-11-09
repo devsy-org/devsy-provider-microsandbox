@@ -88,7 +88,7 @@ func requestedPairMatches(cfg config.Config, pair microsandbox.ResolvedRuntime) 
 }
 
 func runtimeCheck() int {
-	cfg, err := config.Load(os.Getenv)
+	cfg, err := config.LoadEnvironment()
 	if err == nil {
 		var result runtimeCheckResult
 		result, err = checkRuntime(cfg, microsandbox.ResolveRuntime, probeVersion)

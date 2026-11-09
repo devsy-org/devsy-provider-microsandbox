@@ -52,7 +52,7 @@ func serve() int {
 }
 
 func newDriver() (runtimev1.RuntimeDriverServer, error) {
-	cfg, err := config.Load(os.Getenv)
+	cfg, err := config.LoadEnvironment()
 	if err != nil {
 		return nil, err
 	}
