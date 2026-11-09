@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.1...v1.1.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* keep provider generated label values readable in errors ([#78](https://github.com/devsy-org/devsy-provider-microsandbox/issues/78)) ([ea31f9c](https://github.com/devsy-org/devsy-provider-microsandbox/commit/ea31f9c1a8353e0f5aa929e303e31ede5397c7c7))
+
 ## [1.1.1](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.0...v1.1.1) (2026-11-09)
 
 
