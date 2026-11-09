@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.6...v1.1.0) (2026-11-09)
+
+
+### Features
+
+* generate a local provider manifest for development ([#74](https://github.com/devsy-org/devsy-provider-microsandbox/issues/74)) ([0a8e1cc](https://github.com/devsy-org/devsy-provider-microsandbox/commit/0a8e1cc5b7b5a87ac4e2c22e946158fe4802c372))
+
 ## [1.0.6](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.0.5...v1.0.6) (2026-11-08)
 
 
