@@ -24,8 +24,8 @@ type Config struct {
 // Load reads provider options without accessing process-global environment state.
 func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
-		MSBPath:       getenv("MSB_PATH"),
-		LibkrunfwPath: getenv("MSB_LIBKRUNFW_PATH"),
+		MSBPath:       runtimePath(getenv("MSB_PATH")),
+		LibkrunfwPath: runtimePath(getenv("MSB_LIBKRUNFW_PATH")),
 		WorkspacePolicy: msb.MountPolicy{
 			StatVirtualization: msb.StatStrict,
 			HostPermissions:    msb.HostMirror,
@@ -143,4 +143,11 @@ func loadCPUs(getenv func(string) string, cfg *Config) error {
 		*field.target = uint8(value)
 	}
 	return nil
+}
+
+func runtimePath(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return value
 }

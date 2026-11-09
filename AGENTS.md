@@ -86,6 +86,7 @@ CI builds and tests the executable natively on linux/amd64, linux/arm64, darwin/
 
 - Preserve binary stdout/stderr, literal argv, cancellation, stdin EOF, and cleanup behavior. Only an authoritative guest exit event supplies an exit code. Backend failures remain errors.
 - Keep guest environment and sandbox label values off the `msb` command line, where other local users can read them with `ps`. `internal/msb/envconf.go` passes them through host variables referenced by a temporary `--runtime-conf` file (msb 0.7.13 and newer). The file holds no values and is removed after `msb run` returns. The values stay in the `msb` child's environment, readable only by the same user.
+- Load process options with `config.LoadEnvironment` before SDK initialization or child processes. It validates first, then removes blank native path overrides from the process environment so the Go configuration, native SDK, and msb children agree. Preserve nonblank paths exactly.
 - Preserve validation before mutation, version checks that apply only during provisioning, mount ownership, image snapshot identity, and secret redaction.
 - Info must not change capabilities based on the runtime version probe. The host needs preflight and may select destructive recreation.
 - Installation and the plugin handshake must not create or start a VM. Keep stdout reserved for the plugin protocol. Diagnostics belong on stderr.

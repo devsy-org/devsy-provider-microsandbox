@@ -12,6 +12,8 @@ devsy provider add microsandbox
 
 If the deprecated built-in provider already uses `microsandbox`, add this provider with `--name microsandbox-external`. Existing configurations are not migrated.
 
+Empty or whitespace only `MSB_PATH` and `MSB_LIBKRUNFW_PATH` options use runtime discovery. Set both paths when selecting a runtime pair. Blank `MSB_HOME`, `MSB_CONFIG_PATH`, and `MSB_AGENTD_PATH` overrides also use MicroSandbox defaults.
+
 Supported platforms: linux amd64, linux arm64, darwin arm64, windows amd64.
 
 See the [website documentation](https://devsy.sh/docs/managing-providers/microsandbox) for details and [AGENTS.md](AGENTS.md) for contributor guidance.
