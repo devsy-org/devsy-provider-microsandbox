@@ -39,12 +39,15 @@ Not relevant here. This provider does not build or serve the Devsy agent binary.
 
 Unit tests use `testify/suite` and run on Linux, macOS, and Windows in CI. They need no `msb` runtime.
 
-### Real runtime tests
+### Relocated pinned runtime test
 
-Tests that need a real `msb` runtime or microVM skip unless `DEVSY_QUALIFY_RUNTIME=1` or `DEVSY_MSB_CONFORMANCE=1` is set. They need the matching `msb` 0.7.13 executable and firmware, with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`.
+`TestRelocatedPinnedRuntime` in `cmd/devsy-runtime-microsandbox` runs on linux/amd64 only. It downloads its own pinned runtime and firmware, so it needs no `msb` install. It needs `DEVSY_QUALIFY_RUNTIME=1` and `DEVSY_ADAPTER_BINARY`, the absolute path of a built provider executable (`mise run build`). CI runs it in the `Pinned runtime relocation` job.
 
-- **Relocated pinned runtime**: `TestRelocatedPinnedRuntime` in `cmd/devsy-runtime-microsandbox`. CI runs it in the `Pinned runtime relocation` job.
-- **Real VM conformance**: needs Hypervisor.framework on a Mac or accessible KVM on Linux. Hosted CI runners lack KVM, so CI does not run it.
+### Real VM tests
+
+These tests skip unless `DEVSY_MSB_CONFORMANCE=1` or `DEVSY_QUALIFY_RUNTIME=1` is set. They need the matching `msb` 0.7.13 executable and firmware, with absolute `MSB_PATH` and `MSB_LIBKRUNFW_PATH`, plus Hypervisor.framework on a Mac or accessible KVM on Linux. Hosted CI runners lack KVM, so CI does not run them.
+
+Real VM conformance:
 
 ```sh
 unset DEVSY_HOME
