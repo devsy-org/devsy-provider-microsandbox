@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
+	"github.com/devsy-org/devsy-runtime-sdk/runtimev1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -93,6 +97,58 @@ func (s *runtimeSuite) TestCreationDiagnosticRedaction() {
 			_, err = s.runtime.RunImage(context.Background(), s.request)
 			s.Require().Error(err)
 			s.ErrorContains(err, tc.want)
+		})
+	}
+}
+
+// TestCreationBindDiagnosticRedaction protects both protocol error messages from creation inputs.
+func (s *runtimeSuite) TestCreationBindDiagnosticRedaction() {
+	for _, diagnostic := range []string{
+		"image error: registry error: Not authorized",
+		"image error: registry error: connection refused",
+		"invalid config: tmpfs root disk size exceeds sandbox memory",
+		"build_vm: invalid max vCPU count: 255",
+		"mount-dir source rejected",
+	} {
+		s.Run(diagnostic, func() {
+			s.SetupTest()
+			s.prepareImage()
+			binary, err := os.Executable()
+			s.Require().NoError(err)
+			s.runtime.client = &creationClient{
+				fakeClient: s.client,
+				backend:    msb.Client{Binary: binary},
+			}
+			s.request.WorkspaceMount = nil
+			s.request.User, s.request.RemoteUser = reuseRootUser, reuseRootUser
+			root := s.T().TempDir()
+			short := filepath.Join(root, "private-bind")
+			long := short + "-long"
+			s.Require().NoError(os.Mkdir(short, 0o750))
+			s.Require().NoError(os.Mkdir(long, 0o750))
+			resolved, err := filepath.EvalSymlinks(long)
+			s.Require().NoError(err)
+			missing := filepath.Join(root, "missing-bind")
+			s.request.Mounts = []*runtimev1.Mount{
+				{Type: runtimev1.MountType_MOUNT_TYPE_BIND, Source: short, Target: "/short"},
+				{Type: runtimev1.MountType_MOUNT_TYPE_BIND, Source: long, Target: "/long"},
+				{Type: runtimev1.MountType_MOUNT_TYPE_BIND, Source: missing, Target: "/missing"},
+			}
+			s.request.Environment = map[string]string{"CREATION_PRIVATE": "private-env-value"}
+			s.request.Labels = []string{"private=private-label-value"}
+			output := fmt.Sprintf("%s: %s %s %s %s", diagnostic, long, short, resolved, missing)
+			s.T().Setenv(creationFixtureEnv, output+" private-env-value private-label-value")
+			_, err = s.runtime.RunImage(context.Background(), s.request)
+			s.Require().Error(err)
+			st := status.Convert(err)
+			s.Equal(codes.Internal, st.Code())
+			want := "msb run: " + diagnostic + ": *** *** *** *** *** ***: exit status 1"
+			s.Equal(want, st.Message())
+			s.Require().Len(st.Details(), 1)
+			detail, ok := st.Details()[0].(*runtimev1.RuntimeError)
+			s.Require().True(ok)
+			s.Equal(runtimev1.RuntimeErrorCode_RUNTIME_ERROR_CODE_RUNTIME_FAILURE, detail.GetCode())
+			s.Equal(want, detail.GetMessage())
 		})
 	}
 }

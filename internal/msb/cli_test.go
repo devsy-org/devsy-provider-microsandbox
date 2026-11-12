@@ -375,6 +375,38 @@ func (s *clientSuite) TestDiscoverySkipsUnusableHomeCandidate() {
 	s.NoError((Client{}).EnsureInstalled(context.Background()))
 }
 
+// TestCreateRedactsBindPathForms covers path spelling changes in CLI diagnostics.
+func (s *clientSuite) TestCreateRedactsBindPathForms() {
+	for _, form := range []string{"relative", "symlink"} {
+		s.Run(form, func() {
+			root := s.T().TempDir()
+			s.T().Chdir(root)
+			source := filepath.Join("private-bind", "missing")
+			printed, err := filepath.Abs(source)
+			s.Require().NoError(err)
+			if form == "symlink" {
+				printed = filepath.Join(root, "target")
+				s.Require().NoError(os.Mkdir(printed, 0o750))
+				source = filepath.Join(root, "link")
+				if err := os.Symlink(printed, source); err != nil {
+					if runtime.GOOS == testWindows && deniedSymlink(err) {
+						s.T().Skip("creating symlinks requires privilege on this Windows account")
+					}
+					s.Require().NoError(err)
+				}
+				printed, err = filepath.EvalSymlinks(printed)
+				s.Require().NoError(err)
+			}
+			s.T().Setenv("DEVSY_MSB_TEST_MODE", "creation-diagnostic")
+			s.T().Setenv("DEVSY_MSB_TEST_DIAGNOSTIC", "rejected "+source+" / "+printed)
+			err = s.client.Create(context.Background(), wsName, Spec{
+				Image: testImg, Mounts: []Mount{{Source: source, Target: "/private"}},
+			})
+			s.Require().EqualError(err, "msb run: rejected *** / ***: exit status 1")
+		})
+	}
+}
+
 func (s *clientSuite) args() []string {
 	data, err := os.ReadFile(s.record)
 	s.Require().NoError(err)
@@ -399,6 +431,10 @@ func runHelper() int {
 		return 1
 	}
 	mode := os.Getenv("DEVSY_MSB_TEST_MODE")
+	if mode == "creation-diagnostic" {
+		_ = writeHelper(os.Stderr, os.Getenv("DEVSY_MSB_TEST_DIAGNOSTIC"))
+		return 1
+	}
 	code := dispatchHelper(args, mode)
 	if mode == "fail" {
 		return 7

@@ -49,6 +49,7 @@ func (c Client) Version(ctx context.Context) (string, error) {
 
 // Create ensures named volumes before starting a detached VM.
 func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
+	secrets := bindSourceValues(spec.Mounts)
 	if err := c.ensureVolumes(ctx, spec.Mounts); err != nil {
 		return err
 	}
@@ -57,12 +58,14 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 		return err
 	}
 	spec.Mounts = mounts
+	secrets = append(secrets, bindSourceValues(mounts)...)
 	conf, err := writeEnvConf(spec)
 	if err != nil {
 		return err
 	}
 	defer conf.remove()
-	return c.runWithEnv(ctx, conf.environ, runArgs(sandbox, spec, conf.path), conf.values())
+	secrets = append(secrets, conf.values()...)
+	return c.runWithEnv(ctx, conf.environ, runArgs(sandbox, spec, conf.path), secrets)
 }
 
 // Find returns nil only when msb reports that the VM does not exist.
@@ -174,7 +177,7 @@ func (c Client) runWithEnv(ctx context.Context, environ, args, secrets []string)
 	if err != nil {
 		return fmt.Errorf(
 			"msb %s: %s: %w",
-			strings.Join(args, " "),
+			args[0],
 			redactSecrets(strings.TrimSpace(string(out)), secrets),
 			err,
 		)

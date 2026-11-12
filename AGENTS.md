@@ -62,6 +62,8 @@ The conformance test isolates its runtime home under `/tmp` and pulls Alpine 3.2
 
 `TestRealGuestEOF` in `internal/msb` also needs `DEVSY_QUALIFY_RUNTIME=1`, `DEVSY_QUALIFY_SANDBOX`, `MSB_PATH`, and `MSB_LIBKRUNFW_PATH`, with an isolated `MSB_HOME` and an existing running Alpine VM. With the official darwin arm64 0.7.13 pair, normal `cat` EOF and 51 cancelled execs left 2 goroutines before and after settling. No native stdin Close leak reproduced. Guest stdin cleanup is joined after Kill and handle teardown. Preserve Kill before joining stdin cleanup.
 
+Creation diagnostics redact request environment, label and bind source values per call, including original, absolute and resolved bind paths. SDK errors pass through unchanged. With SDK 0.7.14 and runtime 0.7.13 on macOS arm64, real probes of missing executables, bad users, invalid cwd, non-executable files, cancellation, missing and stopped sandboxes, stop and kill during exec, bad images and unreachable registries found no environment or label values in SDK diagnostics. This is bounded evidence, not a guarantee for other failures or versions. The msb catalog stores environment, label and bind values on disk by design; canary bytes remained in `MSB_HOME/db/msb.db-wal` after sandbox deletion.
+
 ### Distribution checks
 
 CI builds and tests the executable natively on linux/amd64, linux/arm64, darwin/arm64, and windows/amd64, generates the pinned manifest, and installs it with a pinned checkout of the real Devsy host. Workflow and distribution changes must pass these checks.

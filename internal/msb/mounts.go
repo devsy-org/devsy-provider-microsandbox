@@ -91,3 +91,17 @@ func bindMountSpec(m Mount) string {
 	}
 	return spec
 }
+
+func bindSourceValues(mounts []Mount) []string {
+	var values []string
+	for _, mount := range mounts {
+		if mount.Source == "" || mount.Tmpfs || mount.Volume != "" {
+			continue
+		}
+		values = append(values, mount.Source)
+		if absolute, err := filepath.Abs(mount.Source); err == nil && absolute != mount.Source {
+			values = append(values, absolute)
+		}
+	}
+	return values
+}

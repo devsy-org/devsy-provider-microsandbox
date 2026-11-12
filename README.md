@@ -35,7 +35,7 @@ devsy workspace ssh local-test --start-services=false --command 'uname -sm'
 devsy workspace delete local-test --force
 ```
 
-The task builds for the current host only: macOS arm64 or Linux amd64 or arm64. It keeps pinned executables and uses `dist/m` as an isolated runtime home. Use a short checkout path for Unix sockets. It does not download runtimes or remove old builds. After rebuilding, refresh:
+This host-only task uses `dist/m` as its isolated runtime home. Use a short checkout path for Unix sockets. After rebuilding, refresh:
 
 ```sh
 mise run build:provider:dev
@@ -43,9 +43,9 @@ devsy provider set-source --use=false microsandbox-local "$PWD/dist/local/provid
 devsy provider init microsandbox-local
 ```
 
-This external provider requires msb 0.7.13 or newer. The built-in driver in Devsy core requires 0.7.2 for provisioning and 0.7.7 for recreate. Core currently strips provider options with `devsy up --disable-daemon`, so runtime paths are lost with that flag. Real VM tests need Hypervisor.framework or KVM and are not run on hosted CI. Run the conformance command in [AGENTS.md](AGENTS.md#real-vm-tests) locally before a release and when the runtime changes.
+Core strips provider options with `devsy up --disable-daemon`. Real VM tests need Hypervisor.framework or KVM. Follow [AGENTS.md](AGENTS.md#real-vm-tests) before releases or runtime changes.
 
-Creation errors redact request environment and label values, including devcontainer metadata and short values. Provider generated user and workspace mount labels stay readable unless the same value also appears in a request environment variable or label.
+Creation errors redact request environment, label and bind source values. SDK errors pass through unchanged; runtime 0.7.13 failure probes found no environment or label values. The msb catalog stores these values on disk, including in `MSB_HOME/db/msb.db-wal` after deletion. See [AGENTS.md](AGENTS.md#real-vm-tests) for probe coverage.
 
 ## License
 
