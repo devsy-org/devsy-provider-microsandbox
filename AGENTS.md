@@ -119,3 +119,5 @@ Releases use Release Please (`release-please-config.json`), run from the `Releas
 - Merging the release PR creates a draft release and tag. The `Release assets` workflow (`.github/workflows/release.yml`) builds and verifies all native assets from the tagged commit, then publishes. Never publish a draft with incomplete assets.
 - A release behind the current latest is published without being marked latest.
 - To recover a failure, rerun the `Release assets` workflow with the tag. For an already published release, it downloads the assets and verifies checksums and the regenerated provider manifest without uploading or publishing again.
+
+Do not edit or clear the body of a release PR. Release Please reads the body to create the release, and a cleared body makes it skip the release. Keep the squash commit body empty with `--body ''` on `gh pr merge`, not by editing the PR body. CodeRabbit skipping a bot authored release PR is expected and does not block it when the required checks pass.
