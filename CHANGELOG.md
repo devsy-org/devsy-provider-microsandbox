@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.2...v1.1.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **msb:** redact bind sources and drop argv from create errors ([#81](https://github.com/devsy-org/devsy-provider-microsandbox/issues/81)) ([e274d99](https://github.com/devsy-org/devsy-provider-microsandbox/commit/e274d992ccfba3bc2ad0a30d6ee242309874e1fb))
+
 ## [1.1.2](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.1...v1.1.2) (2026-11-09)
 
 
