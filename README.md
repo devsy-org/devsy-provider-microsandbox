@@ -2,25 +2,25 @@
 
 Run Devsy workspaces in MicroSandbox microVMs.
 
-MicroSandbox `msb` 0.7.13 or newer is required. The SDK upgrades the `MSB_HOME` database. Update `msb` and the provider together because older versions cannot use the upgraded database.
+External provider requires msb 0.7.13+. Built-in Devsy driver requires 0.7.2+ for provisioning, 0.7.7+ for recreate. The SDK upgrades the `MSB_HOME` database; update msb and provider together because older versions cannot use it.
 
-Devsy v1.24.0 or newer is required for the short name.
+Devsy 1.24.0+ supports the short name:
 
 ```sh
 devsy provider add microsandbox
 ```
 
-If the deprecated built-in provider already uses `microsandbox`, add this provider with `--name microsandbox-external`. Existing configurations are not migrated.
+If the deprecated built-in provider already uses `microsandbox`, add `--name microsandbox-external`. Existing configurations are not migrated.
 
-Empty or whitespace only `MSB_PATH` and `MSB_LIBKRUNFW_PATH` options use runtime discovery. Set both paths when selecting a runtime pair. Blank `MSB_HOME`, `MSB_CONFIG_PATH`, and `MSB_AGENTD_PATH` overrides also use MicroSandbox defaults.
+Empty/whitespace-only `MSB_PATH` and `MSB_LIBKRUNFW_PATH` use runtime discovery; select both paths together. Blank `MSB_HOME`, `MSB_CONFIG_PATH`, and `MSB_AGENTD_PATH` use MicroSandbox defaults.
 
-Supported platforms: linux amd64, linux arm64, darwin arm64, windows amd64.
+Platforms: linux amd64/arm64, darwin arm64, windows amd64.
 
-See the [website documentation](https://devsy.sh/docs/managing-providers/microsandbox) for details and [AGENTS.md](AGENTS.md) for contributor guidance.
+See [website documentation](https://devsy.sh/docs/managing-providers/microsandbox) and [contributor guidance](AGENTS.md).
 
 ## Local development
 
-Use an existing matching runtime and firmware pair with absolute paths. On the host, run:
+Use existing matching runtime/firmware with absolute paths:
 
 ```sh
 export MSB_PATH=/absolute/path/to/msb
@@ -35,7 +35,7 @@ devsy workspace ssh local-test --start-services=false --command 'uname -sm'
 devsy workspace delete local-test --force
 ```
 
-This host-only task uses `dist/m` as its isolated runtime home. Use a short checkout path for Unix sockets. After rebuilding, refresh:
+The host-only task builds for macOS arm64 or Linux amd64/arm64, keeps pinned executables, and isolates its runtime home in `dist/m`. Use short checkout paths for Unix sockets. It does not download runtimes or remove old builds. Rebuild, then refresh:
 
 ```sh
 mise run build:provider:dev
@@ -43,9 +43,11 @@ devsy provider set-source --use=false microsandbox-local "$PWD/dist/local/provid
 devsy provider init microsandbox-local
 ```
 
-Core strips provider options with `devsy up --disable-daemon`. Real VM tests need Hypervisor.framework or KVM. Follow [AGENTS.md](AGENTS.md#real-vm-tests) before releases or runtime changes.
+Devsy older than v1.27.0 loses runtime paths with `--disable-daemon`.
 
-Creation errors redact request environment, label and bind source values. SDK errors pass through unchanged; runtime 0.7.13 failure probes found no environment or label values. The msb catalog stores these values on disk, including in `MSB_HOME/db/msb.db-wal` after deletion. See [AGENTS.md](AGENTS.md#real-vm-tests) for probe coverage.
+Real VM tests need Hypervisor.framework or KVM and are not run on hosted CI. Run the conformance command in [AGENTS.md](AGENTS.md#real-vm-tests) locally before a release and when the runtime changes.
+
+Creation errors redact request environment, label and bind source values, including devcontainer metadata and short values; SDK errors pass through unchanged. Provider generated user and workspace mount labels stay readable unless the same value also appears in a request environment variable or label.
 
 ## License
 

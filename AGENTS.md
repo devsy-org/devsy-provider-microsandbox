@@ -41,7 +41,7 @@ Unit tests use `testify/suite` and run on Linux, macOS, and Windows in CI. They 
 
 ### Local provider workflow
 
-Set `MSB_PATH` and `MSB_LIBKRUNFW_PATH` to an existing matching pair of absolute paths. Run `unset DEVSY_HOME` and `mise run build:provider:dev`. Follow the printed commands to install `microsandbox-local`, then run a workspace as shown in the README. Rebuild and follow the refresh commands after changes. The helper supports the host platform only and keeps its runtime home under `dist/m`. Use a short checkout path for Unix sockets. Core's `--disable-daemon` strips provider options, including these paths.
+Set `MSB_PATH` and `MSB_LIBKRUNFW_PATH` to an existing matching pair of absolute paths. Run `unset DEVSY_HOME` and `mise run build:provider:dev`. Follow the printed commands to install `microsandbox-local`, then run a workspace as shown in the README. Rebuild and follow the refresh commands after changes. The helper supports the host platform only and keeps its runtime home under `dist/m`. Use a short checkout path for Unix sockets. Devsy versions older than v1.27.0 lose these runtime paths with `--disable-daemon`.
 
 ### Relocated pinned runtime test
 
