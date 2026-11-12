@@ -407,6 +407,24 @@ func (s *clientSuite) TestCreateRedactsBindPathForms() {
 	}
 }
 
+// TestCreateRedactsMountResolutionFailure rejects a loop without exposing its path or starting msb.
+func (s *clientSuite) TestCreateRedactsMountResolutionFailure() {
+	source := filepath.Join(s.T().TempDir(), "private-bind")
+	if err := os.Symlink(source, source); err != nil {
+		if runtime.GOOS == testWindows && deniedSymlink(err) {
+			s.T().Skip("creating symlinks requires privilege on this Windows account")
+		}
+		s.Require().NoError(err)
+	}
+	err := s.client.Create(context.Background(), wsName, Spec{
+		Image: testImg, Mounts: []Mount{{Source: source, Target: "/private"}},
+	})
+	s.Require().Error(err)
+	s.NotContains(err.Error(), source)
+	s.Contains(err.Error(), "resolve bind mount host path")
+	s.NoFileExists(s.record)
+}
+
 func (s *clientSuite) args() []string {
 	data, err := os.ReadFile(s.record)
 	s.Require().NoError(err)

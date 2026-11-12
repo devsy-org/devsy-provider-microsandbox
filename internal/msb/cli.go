@@ -55,7 +55,7 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 	}
 	mounts, err := resolveHostMounts(spec.Mounts)
 	if err != nil {
-		return err
+		return errors.New(redactSecrets(err.Error(), secrets))
 	}
 	spec.Mounts = mounts
 	secrets = append(secrets, bindSourceValues(mounts)...)
