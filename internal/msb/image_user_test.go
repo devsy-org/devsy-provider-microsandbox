@@ -251,7 +251,7 @@ func (s *imageUserSuite) TestOwnerAndImportShareLocalSnapshot() {
 	s.T().Setenv("DEVSY_MSB_TEST_MODE", modeDocker)
 	s.T().Setenv("DEVSY_MSB_TEST_RECORD", record)
 	s.T().Setenv("DEVSY_MSB_TEST_IMAGE_ARCHIVE", archive)
-	client := Client{Binary: binary, DockerBinary: binary}
+	client := Client{Binary: binary, ImageCLI: binary}
 	prepared, err := client.PrepareImage(context.Background(), testImg, true)
 	s.Require().NoError(err)
 	defer func() { _ = prepared.Close() }()

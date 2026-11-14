@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -49,11 +50,11 @@ func (s *clientSuite) TestLocalSnapshotSurvivesSourceChange() {
 	s.NoError(prepared.Close())
 }
 
-func (s *clientSuite) TestConfiguredDockerBinary() {
+func (s *clientSuite) TestConfiguredImageCLI() {
 	s.installDockerHelper()
 	s.T().Setenv("PATH", s.T().TempDir())
 	s.T().Setenv("DEVSY_MSB_TEST_MODE", modeDocker)
-	s.client.DockerBinary = s.client.Binary
+	s.client.ImageCLI = s.client.Binary
 	prepared, err := s.client.PrepareImage(context.Background(), testImg, true)
 	s.Require().NoError(err)
 	defer func() { _ = prepared.Close() }()
@@ -64,20 +65,29 @@ func (s *clientSuite) TestConfiguredDockerBinary() {
 	s.assertImportedDigest(digest)
 }
 
-func (s *clientSuite) TestConfiguredBuilderInspectionDistinguishesMissingImageFromFailure() {
+func (s *clientSuite) TestImageLookupFailureFallsBackOnlyWhenNotStrict() {
 	server := httptest.NewServer(registry.New(registry.Logger(log.New(io.Discard, "", 0))))
 	defer server.Close()
 	ref, err := name.NewTag(server.Listener.Addr().String()+"/probe:latest", name.Insecure)
 	s.Require().NoError(err)
 	s.Require().NoError(remote.Write(ref, s.hostImage()))
-	for _, mode := range []string{"image-missing", modeInspectFail} {
-		s.Run(mode, func() {
+	for _, tc := range []struct {
+		mode    string
+		strict  bool
+		failure bool
+	}{
+		{modeImageMissing, true, false},
+		{modeInspectFail, true, true},
+		{modeInspectFail, false, false},
+	} {
+		s.Run(fmt.Sprint(tc.mode, "/strict=", tc.strict), func() {
 			s.installDockerHelper()
-			s.client.DockerBinary = s.client.Binary
-			s.T().Setenv("DEVSY_MSB_TEST_MODE", mode)
+			s.client.ImageCLI = s.client.Binary
+			s.client.StrictImageLookup = tc.strict
+			s.T().Setenv("DEVSY_MSB_TEST_MODE", tc.mode)
 			s.T().Setenv("DOCKER_CONFIG", s.T().TempDir())
 			prepared, err := s.client.PrepareImage(context.Background(), ref.Name(), false)
-			if mode == modeInspectFail {
+			if tc.failure {
 				s.ErrorContains(err, "inspect final local image")
 				s.ErrorContains(err, "store unavailable")
 				s.Nil(prepared)

@@ -75,6 +75,7 @@ func (s *entrypointSuite) TestMissingSelectedImageBuilderDoesNotUseDockerOrRegis
 			s.Require().Error(err)
 			s.ErrorContains(err, "final local image")
 			s.ErrorContains(err, "missing-podman")
+			s.ErrorContains(err, "set the provider option MICROSANDBOX_IMAGE_BUILDER")
 		})
 	}
 }

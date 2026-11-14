@@ -1,6 +1,7 @@
 package config
 
 import (
+	"cmp"
 	"os"
 	"testing"
 	"time"
@@ -68,10 +69,11 @@ func (s *configSuite) TestDefaults() {
 	s.Equal(msb.HostMirror, cfg.WorkspacePolicy.HostPermissions)
 	s.Zero(cfg.Defaults.Memory)
 	s.Equal("docker", cfg.ImageBuilder)
+	s.False(cfg.StrictImageLookup)
 }
 
 func (s *configSuite) TestImageBuilder() {
-	for _, value := range []string{"", " \t", "docker", "podman", "/image tools/podman"} {
+	for _, value := range []string{"", "docker", "podman", "/image tools/podman"} {
 		s.Run(value, func() {
 			cfg, err := Load(func(key string) string {
 				if key == "MICROSANDBOX_IMAGE_BUILDER" {
@@ -80,11 +82,9 @@ func (s *configSuite) TestImageBuilder() {
 				return ""
 			})
 			s.Require().NoError(err)
-			want := value
-			if value == "" {
-				want = "docker"
-			}
+			want := cmp.Or(value, msb.DefaultImageCLI)
 			s.Equal(want, cfg.ImageBuilder)
+			s.Equal(want != msb.DefaultImageCLI, cfg.StrictImageLookup)
 		})
 	}
 }

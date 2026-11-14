@@ -16,11 +16,14 @@ const statPolicyOption = "MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION"
 
 // Config holds runtime defaults and the primary workspace bind-mount policy.
 type Config struct {
-	MSBPath         string
-	LibkrunfwPath   string
-	ImageBuilder    string
-	Defaults        msb.Spec
-	WorkspacePolicy msb.MountPolicy
+	MSBPath       string
+	LibkrunfwPath string
+	ImageBuilder  string
+	// StrictImageLookup is false only for the default builder, whose
+	// lookup failures historically fall back to the registry.
+	StrictImageLookup bool
+	Defaults          msb.Spec
+	WorkspacePolicy   msb.MountPolicy
 }
 
 // Load reads provider options without accessing process-global environment state.
@@ -28,12 +31,13 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
 		MSBPath:       runtimePath(getenv("MSB_PATH")),
 		LibkrunfwPath: runtimePath(getenv("MSB_LIBKRUNFW_PATH")),
-		ImageBuilder:  cmp.Or(getenv("MICROSANDBOX_IMAGE_BUILDER"), "docker"),
+		ImageBuilder:  cmp.Or(getenv("MICROSANDBOX_IMAGE_BUILDER"), msb.DefaultImageCLI),
 		WorkspacePolicy: msb.MountPolicy{
 			StatVirtualization: msb.StatStrict,
 			HostPermissions:    msb.HostMirror,
 		},
 	}
+	cfg.StrictImageLookup = cfg.ImageBuilder != msb.DefaultImageCLI
 	if err := loadResources(getenv, &cfg); err != nil {
 		return Config{}, err
 	}

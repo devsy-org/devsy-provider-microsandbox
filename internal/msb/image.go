@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"runtime"
@@ -17,7 +18,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
-const defaultDockerBinary = "docker"
+// DefaultImageCLI is the Docker-compatible CLI used when none is configured.
+const DefaultImageCLI = "docker"
+
+const imageCLIHint = "set the provider option MICROSANDBOX_IMAGE_BUILDER " +
+	"to an installed Docker-compatible CLI, such as podman"
 
 // PreparedImage keeps the final image available for validation and import.
 // Close it only after all lazy image and layer reads have finished.
@@ -59,10 +64,9 @@ func (c Client) PrepareImage(
 	var err error
 	local := builtLocally
 	if !local {
-		local, err = c.localImageAvailable(ctx, ref)
-	}
-	if err != nil {
-		return nil, err
+		if local, err = c.localImageAvailable(ctx, ref); err != nil {
+			return nil, err
+		}
 	}
 	if local {
 		prepared, err = c.localImage(ctx, ref)
@@ -133,42 +137,50 @@ func (c Client) importSnapshot(
 	return nil
 }
 
-func (c Client) dockerBinary() string {
-	if c.DockerBinary != "" {
-		return c.DockerBinary
+func (c Client) imageCLI() string {
+	if c.ImageCLI != "" {
+		return c.ImageCLI
 	}
-	return defaultDockerBinary
+	return DefaultImageCLI
 }
 
 func (c Client) localImageAvailable(ctx context.Context, ref string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// #nosec G204 -- configured Docker-compatible executable and fixed inspection arguments.
-	output, err := exec.CommandContext(ctx, c.dockerBinary(), "image", "inspect", ref).
-		CombinedOutput()
-	if err == nil {
+	cmd := exec.CommandContext(ctx, c.imageCLI(), "image", "inspect", ref)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	switch {
+	case err == nil:
 		return true, nil
-	}
-	// Preserve Docker's optional local lookup for registry-only workspaces.
-	if c.dockerBinary() == defaultDockerBinary ||
-		(ctx.Err() == nil && missingLocalImage(err, string(output))) {
+	case !c.StrictImageLookup:
+		return false, nil
+	case ctx.Err() == nil && missingLocalImage(stderr.String()):
 		return false, nil
 	}
 	return false, fmt.Errorf("inspect final local image %q with %q: %s: %w",
-		ref, c.dockerBinary(), strings.TrimSpace(string(output)), errors.Join(err, ctx.Err()))
+		ref, c.imageCLI(), strings.TrimSpace(stderr.String()),
+		withImageCLIHint(errors.Join(err, ctx.Err())))
 }
 
-func missingLocalImage(err error, output string) bool {
-	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
-		return false
-	}
-	output = strings.ToLower(output)
+func missingLocalImage(stderr string) bool {
+	stderr = strings.ToLower(stderr)
 	for _, marker := range []string{"no such image", "no such object", "image not known"} {
-		if strings.Contains(output, marker) {
+		if strings.Contains(stderr, marker) {
 			return true
 		}
 	}
 	return false
+}
+
+func withImageCLIHint(err error) error {
+	// A name searched on PATH reports ErrNotFound; an explicit path reports ErrNotExist.
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w; %s", err, imageCLIHint)
+	}
+	return err
 }
 
 func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, error) {
@@ -178,7 +190,7 @@ func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, err
 	}
 	prepared := &PreparedImage{archive: archive.Name()}
 	// #nosec G204 -- configured Docker-compatible executable, fixed subcommand, image argument.
-	cmd := exec.CommandContext(ctx, c.dockerBinary(), "save", ref)
+	cmd := exec.CommandContext(ctx, c.imageCLI(), "save", ref)
 	cmd.Stdout = archive
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -186,17 +198,11 @@ func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, err
 	closeErr := archive.Close()
 	if err := errors.Join(runErr, closeErr, ctx.Err()); err != nil {
 		_ = prepared.Close()
-		if c.dockerBinary() == defaultDockerBinary && errors.Is(runErr, exec.ErrNotFound) {
-			err = fmt.Errorf(
-				"%w; to use Podman, set the provider option MICROSANDBOX_IMAGE_BUILDER=podman",
-				err,
-			)
-		}
 		return nil, fmt.Errorf(
 			"save final local image %q: %s: %w",
 			ref,
 			strings.TrimSpace(stderr.String()),
-			err,
+			withImageCLIHint(err),
 		)
 	}
 	prepared.image, err = tarball.ImageFromPath(prepared.archive, nil)

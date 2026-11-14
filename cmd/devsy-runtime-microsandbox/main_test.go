@@ -78,21 +78,6 @@ func (s *entrypointSuite) TestVersionAndArgumentValidation() {
 	}
 }
 
-func (s *entrypointSuite) TestMissingDockerSuggestsPodman() {
-	cmd := exec.Command(executable, "serve")
-	cmd.Env = append(os.Environ(),
-		"PATH="+s.T().TempDir(),
-		"MSB_PATH=", "MSB_LIBKRUNFW_PATH=",
-		"MICROSANDBOX_IMAGE_BUILDER=docker",
-	)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	s.Error(err)
-	s.Empty(out)
-	s.Contains(stderr.String(), "MICROSANDBOX_IMAGE_BUILDER=podman")
-}
-
 func (s *entrypointSuite) TestRealPluginHandshakeAndLogs() {
 	client := s.pluginClient()
 	info, err := client.Info(s.ctx(), &runtimev1.InfoRequest{})
