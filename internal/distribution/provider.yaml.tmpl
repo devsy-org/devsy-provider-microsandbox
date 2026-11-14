@@ -8,6 +8,7 @@ optionGroups:
   - options:
       - MSB_PATH
       - MSB_LIBKRUNFW_PATH
+      - MICROSANDBOX_IMAGE_BUILDER
       - MICROSANDBOX_MEMORY
       - MICROSANDBOX_CPUS
       - MICROSANDBOX_MAX_MEMORY
@@ -28,6 +29,9 @@ options:
   MSB_LIBKRUNFW_PATH:
     description: "Path to the MicroSandbox firmware library. Set together with MSB_PATH."{{if .Local}}
     default: {{.Local.Firmware}}{{end}}
+  MICROSANDBOX_IMAGE_BUILDER:
+    description: "Docker-compatible image CLI used for host builds and local image imports. Set to podman to use Podman, or an executable path (not a shell command)."
+    default: docker
   MICROSANDBOX_MEMORY:
     description: "Guest memory limit in MiB. Empty uses the runtime default."
     default: "2048"
@@ -71,6 +75,8 @@ agent:
   containerInactivityTimeout: ${INACTIVITY_TIMEOUT}
   local: true
   driver: external
+  docker:
+    path: ${MICROSANDBOX_IMAGE_BUILDER}
   external:
     binary: DEVSY_RUNTIME_DRIVER
     args: [serve]

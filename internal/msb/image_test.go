@@ -25,13 +25,14 @@ import (
 )
 
 const (
-	testLinux    = "linux"
-	modeLoadFail = "load-fail"
-	modeDocker   = "docker"
-	modeSaveFail = "save-fail"
-	imageSave    = "save"
-	imageLoad    = "load"
-	hostMarker   = "MARKER=host"
+	testLinux       = "linux"
+	modeLoadFail    = "load-fail"
+	modeDocker      = "docker"
+	modeSaveFail    = "save-fail"
+	modeInspectFail = "inspect-fail"
+	imageSave       = "save"
+	imageLoad       = "load"
+	hostMarker      = "MARKER=host"
 )
 
 func (s *clientSuite) TestImageLocalDockerLoad() {
@@ -62,6 +63,7 @@ func (s *clientSuite) TestImageMissingBuiltImageDoesNotPull() {
 	s.T().Setenv("PATH", s.T().TempDir())
 	_, err := s.client.PrepareImage(context.Background(), testImg, true)
 	s.ErrorContains(err, "save final local image")
+	s.ErrorContains(err, "MICROSANDBOX_IMAGE_BUILDER=podman")
 	_, err = os.Stat(s.record)
 	s.ErrorIs(err, os.ErrNotExist)
 }
@@ -201,6 +203,12 @@ func loadHelper() int {
 func dockerInspectHelper(mode string) int {
 	if mode == modeDocker || mode == modeSaveFail || mode == modeLoadFail {
 		return 0
+	}
+	switch mode {
+	case "image-missing":
+		_ = writeHelper(os.Stderr, "image not known")
+	case modeInspectFail:
+		_ = writeHelper(os.Stderr, "store unavailable")
 	}
 	return 1
 }

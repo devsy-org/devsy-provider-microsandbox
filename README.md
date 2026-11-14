@@ -18,6 +18,25 @@ Platforms: linux amd64/arm64, darwin arm64, windows amd64.
 
 See [website documentation](https://devsy.sh/docs/managing-providers/microsandbox) and [contributor guidance](AGENTS.md).
 
+## Podman image builds
+
+Docker is the default image builder. To use Podman instead:
+
+```sh
+devsy provider set microsandbox --option MICROSANDBOX_IMAGE_BUILDER=podman
+devsy workspace up /absolute/path/to/project --provider microsandbox --ide none
+```
+
+Use `microsandbox-local` instead for the local development provider. The option
+also accepts an executable path, without flags.
+
+Keep connection and environment settings consistent so builds and imports use
+the same Podman image store. When using rootless Podman, do not use `sudo`:
+rootful Podman has a separate image store. Use `podman login` for private registries.
+
+No Docker installation or compatibility symlink is needed. Podman builds images
+on the host; workspaces still run in MicroSandbox microVMs. Compose is not supported.
+
 ## Local development
 
 Use existing matching runtime/firmware with absolute paths:

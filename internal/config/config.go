@@ -2,6 +2,7 @@
 package config
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"strconv"
@@ -17,6 +18,7 @@ const statPolicyOption = "MICROSANDBOX_WORKSPACE_STAT_VIRTUALIZATION"
 type Config struct {
 	MSBPath         string
 	LibkrunfwPath   string
+	ImageBuilder    string
 	Defaults        msb.Spec
 	WorkspacePolicy msb.MountPolicy
 }
@@ -26,6 +28,7 @@ func Load(getenv func(string) string) (Config, error) {
 	cfg := Config{
 		MSBPath:       runtimePath(getenv("MSB_PATH")),
 		LibkrunfwPath: runtimePath(getenv("MSB_LIBKRUNFW_PATH")),
+		ImageBuilder:  cmp.Or(getenv("MICROSANDBOX_IMAGE_BUILDER"), "docker"),
 		WorkspacePolicy: msb.MountPolicy{
 			StatVirtualization: msb.StatStrict,
 			HostPermissions:    msb.HostMirror,

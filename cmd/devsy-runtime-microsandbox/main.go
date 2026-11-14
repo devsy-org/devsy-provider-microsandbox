@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/config"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
@@ -61,5 +62,13 @@ func newDriver() (runtimev1.RuntimeDriverServer, error) {
 			return nil, err
 		}
 	}
-	return server.New(msb.Client{Binary: cfg.MSBPath}, cfg, version)
+	if cfg.ImageBuilder == "docker" {
+		if _, err := exec.LookPath(cfg.ImageBuilder); err != nil {
+			fmt.Fprintln(
+				os.Stderr,
+				"Docker is unavailable; to use Podman, set the provider option MICROSANDBOX_IMAGE_BUILDER=podman",
+			)
+		}
+	}
+	return server.New(msb.Client{Binary: cfg.MSBPath, DockerBinary: cfg.ImageBuilder}, cfg, version)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,6 +25,59 @@ const (
 	fixtureRecordEnv    = "DEVSY_MSB_ENTRYPOINT_RECORD"
 	recreateWorkspaceID = "workspace"
 )
+
+func (s *entrypointSuite) TestImageBuilderReachesPluginSnapshotImport() {
+	dir := s.T().TempDir()
+	builder := filepath.Join(dir, "podman.exe")
+	s.writeFixture(builder)
+	archive := filepath.Join(dir, "image.tar")
+	tag, err := name.NewTag("localhost/provider-podman-test:latest")
+	s.Require().NoError(err)
+	s.Require().NoError(tarball.WriteToFile(archive, tag, empty.Image))
+	for _, built := range []bool{false, true} {
+		s.Run(fmt.Sprint(built), func() {
+			record := filepath.Join(s.T().TempDir(), "calls.jsonl")
+			client := s.pluginClientWithEnv(
+				"MICROSANDBOX_IMAGE_BUILDER="+builder,
+				"DEVSY_MSB_ENTRYPOINT_IMAGE_ARCHIVE="+archive,
+				"DEVSY_MSB_ENTRYPOINT_EXISTING=0",
+				fixtureRecordEnv+"="+record,
+			)
+			req := recreateRequest(tag.Name(), false)
+			req.ImageBuiltLocally = built
+			_, err := client.RunImage(s.ctx(), req)
+			s.Require().NoError(err)
+			calls := s.readMSBInvocations(record)
+			if built {
+				s.Zero(s.countCLI(calls, imageCommand))
+			} else {
+				s.Equal(1, s.countCLI(calls, imageCommand))
+				s.Contains(calls, []string{imageCommand, "inspect", tag.Name()})
+			}
+			s.Contains(calls, []string{"save", tag.Name()})
+			s.Equal(1, s.countCLI(calls, "load"))
+			s.Equal(1, s.countCLI(calls, "run"))
+		})
+	}
+}
+
+func (s *entrypointSuite) TestMissingSelectedImageBuilderDoesNotUseDockerOrRegistry() {
+	builder := filepath.Join(s.T().TempDir(), "missing-podman")
+	for _, built := range []bool{false, true} {
+		s.Run(fmt.Sprint(built), func() {
+			client := s.pluginClientWithEnv(
+				"MICROSANDBOX_IMAGE_BUILDER="+builder,
+				"DEVSY_MSB_ENTRYPOINT_EXISTING=0",
+			)
+			req := recreateRequest(s.loopbackImage(), false)
+			req.ImageBuiltLocally = built
+			_, err := client.RunImage(s.ctx(), req)
+			s.Require().Error(err)
+			s.ErrorContains(err, "final local image")
+			s.ErrorContains(err, "missing-podman")
+		})
+	}
+}
 
 func (s *entrypointSuite) TestRecreatePermissionIsPerPluginProcess() {
 	image := s.loopbackImage()

@@ -67,6 +67,26 @@ func (s *configSuite) TestDefaults() {
 	s.Equal(msb.StatStrict, cfg.WorkspacePolicy.StatVirtualization)
 	s.Equal(msb.HostMirror, cfg.WorkspacePolicy.HostPermissions)
 	s.Zero(cfg.Defaults.Memory)
+	s.Equal("docker", cfg.ImageBuilder)
+}
+
+func (s *configSuite) TestImageBuilder() {
+	for _, value := range []string{"", " \t", "docker", "podman", "/image tools/podman"} {
+		s.Run(value, func() {
+			cfg, err := Load(func(key string) string {
+				if key == "MICROSANDBOX_IMAGE_BUILDER" {
+					return value
+				}
+				return ""
+			})
+			s.Require().NoError(err)
+			want := value
+			if value == "" {
+				want = "docker"
+			}
+			s.Equal(want, cfg.ImageBuilder)
+		})
+	}
 }
 
 func (s *configSuite) TestProviderOptions() {

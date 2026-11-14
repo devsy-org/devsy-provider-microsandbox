@@ -17,6 +17,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
+const defaultDockerBinary = "docker"
+
 // PreparedImage keeps the final image available for validation and import.
 // Close it only after all lazy image and layer reads have finished.
 type PreparedImage struct {
@@ -55,7 +57,14 @@ func (c Client) PrepareImage(
 	}
 	var prepared *PreparedImage
 	var err error
-	if builtLocally || c.localImageAvailable(ctx, ref) {
+	local := builtLocally
+	if !local {
+		local, err = c.localImageAvailable(ctx, ref)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if local {
 		prepared, err = c.localImage(ctx, ref)
 	} else {
 		prepared, err = registryImage(ctx, ref)
@@ -128,14 +137,38 @@ func (c Client) dockerBinary() string {
 	if c.DockerBinary != "" {
 		return c.DockerBinary
 	}
-	return "docker"
+	return defaultDockerBinary
 }
 
-func (c Client) localImageAvailable(ctx context.Context, ref string) bool {
+func (c Client) localImageAvailable(ctx context.Context, ref string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// #nosec G204 -- configured Docker-compatible executable and fixed inspection arguments.
-	return exec.CommandContext(ctx, c.dockerBinary(), "image", "inspect", ref).Run() == nil
+	output, err := exec.CommandContext(ctx, c.dockerBinary(), "image", "inspect", ref).
+		CombinedOutput()
+	if err == nil {
+		return true, nil
+	}
+	// Preserve Docker's optional local lookup for registry-only workspaces.
+	if c.dockerBinary() == defaultDockerBinary ||
+		(ctx.Err() == nil && missingLocalImage(err, string(output))) {
+		return false, nil
+	}
+	return false, fmt.Errorf("inspect final local image %q with %q: %s: %w",
+		ref, c.dockerBinary(), strings.TrimSpace(string(output)), errors.Join(err, ctx.Err()))
+}
+
+func missingLocalImage(err error, output string) bool {
+	if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+		return false
+	}
+	output = strings.ToLower(output)
+	for _, marker := range []string{"no such image", "no such object", "image not known"} {
+		if strings.Contains(output, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, error) {
@@ -153,6 +186,12 @@ func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, err
 	closeErr := archive.Close()
 	if err := errors.Join(runErr, closeErr, ctx.Err()); err != nil {
 		_ = prepared.Close()
+		if c.dockerBinary() == defaultDockerBinary && errors.Is(runErr, exec.ErrNotFound) {
+			err = fmt.Errorf(
+				"%w; to use Podman, set the provider option MICROSANDBOX_IMAGE_BUILDER=podman",
+				err,
+			)
+		}
 		return nil, fmt.Errorf(
 			"save final local image %q: %s: %w",
 			ref,

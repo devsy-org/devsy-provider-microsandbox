@@ -380,7 +380,8 @@ func (s *runtimeSuite) prepareImage() {
 	ref, err := name.ParseReference(strings.TrimPrefix(server.URL, "http://") + "/image:test")
 	s.Require().NoError(err)
 	s.Require().NoError(remote.Write(ref, empty.Image))
-	prepared, err := (msb.Client{DockerBinary: "missing-test-docker"}).PrepareImage(
+	s.T().Setenv("PATH", s.T().TempDir())
+	prepared, err := (msb.Client{}).PrepareImage(
 		context.Background(),
 		ref.Name(),
 		false,
