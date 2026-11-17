@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.4...v1.2.0) (2026-11-17)
+
+
+### Features
+
+* **images:** support Podman as an image builder ([402617d](https://github.com/devsy-org/devsy-provider-microsandbox/commit/402617d6c83100ac8aa16418b7108f08d6d0cba9))
+
 ## [1.1.4](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.3...v1.1.4) (2026-11-17)
 
 
