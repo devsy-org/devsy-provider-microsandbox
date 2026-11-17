@@ -85,7 +85,10 @@ func (s *clientSuite) TestImageLookupFailureFallsBackOnlyWhenNotStrict() {
 			s.client.ImageCLI = s.client.Binary
 			s.client.StrictImageLookup = tc.strict
 			s.T().Setenv("DEVSY_MSB_TEST_MODE", tc.mode)
-			s.T().Setenv("DOCKER_CONFIG", s.T().TempDir())
+			dockerConfig := s.T().TempDir()
+			s.Require().
+				NoError(os.WriteFile(filepath.Join(dockerConfig, "config.json"), []byte("{}"), 0o600))
+			s.T().Setenv("DOCKER_CONFIG", dockerConfig)
 			prepared, err := s.client.PrepareImage(context.Background(), ref.Name(), false)
 			if tc.failure {
 				s.ErrorContains(err, "inspect final local image")
