@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -49,11 +50,11 @@ func (s *clientSuite) TestLocalSnapshotSurvivesSourceChange() {
 	s.NoError(prepared.Close())
 }
 
-func (s *clientSuite) TestConfiguredDockerBinary() {
+func (s *clientSuite) TestConfiguredImageCLI() {
 	s.installDockerHelper()
 	s.T().Setenv("PATH", s.T().TempDir())
 	s.T().Setenv("DEVSY_MSB_TEST_MODE", modeDocker)
-	s.client.DockerBinary = s.client.Binary
+	s.client.ImageCLI = s.client.Binary
 	prepared, err := s.client.PrepareImage(context.Background(), testImg, true)
 	s.Require().NoError(err)
 	defer func() { _ = prepared.Close() }()
@@ -62,6 +63,43 @@ func (s *clientSuite) TestConfiguredDockerBinary() {
 	digest, err := prepared.Image().Digest()
 	s.Require().NoError(err)
 	s.assertImportedDigest(digest)
+}
+
+func (s *clientSuite) TestImageLookupFailureFallsBackOnlyWhenNotStrict() {
+	server := httptest.NewServer(registry.New(registry.Logger(log.New(io.Discard, "", 0))))
+	defer server.Close()
+	ref, err := name.NewTag(server.Listener.Addr().String()+"/probe:latest", name.Insecure)
+	s.Require().NoError(err)
+	s.Require().NoError(remote.Write(ref, s.hostImage()))
+	for _, tc := range []struct {
+		mode    string
+		strict  bool
+		failure bool
+	}{
+		{modeImageMissing, true, false},
+		{modeInspectFail, true, true},
+		{modeInspectFail, false, false},
+	} {
+		s.Run(fmt.Sprint(tc.mode, "/strict=", tc.strict), func() {
+			s.installDockerHelper()
+			s.client.ImageCLI = s.client.Binary
+			s.client.StrictImageLookup = tc.strict
+			s.T().Setenv("DEVSY_MSB_TEST_MODE", tc.mode)
+			dockerConfig := s.T().TempDir()
+			s.Require().
+				NoError(os.WriteFile(filepath.Join(dockerConfig, "config.json"), []byte("{}"), 0o600))
+			s.T().Setenv("DOCKER_CONFIG", dockerConfig)
+			prepared, err := s.client.PrepareImage(context.Background(), ref.Name(), false)
+			if tc.failure {
+				s.ErrorContains(err, "inspect final local image")
+				s.ErrorContains(err, "store unavailable")
+				s.Nil(prepared)
+				return
+			}
+			s.Require().NoError(err)
+			s.NoError(prepared.Close())
+		})
+	}
 }
 
 func (s *clientSuite) TestRegistrySnapshotSurvivesTagChange() {

@@ -61,5 +61,9 @@ func newDriver() (runtimev1.RuntimeDriverServer, error) {
 			return nil, err
 		}
 	}
-	return server.New(msb.Client{Binary: cfg.MSBPath}, cfg, version)
+	return server.New(msb.Client{
+		Binary:            cfg.MSBPath,
+		ImageCLI:          cfg.ImageBuilder,
+		StrictImageLookup: cfg.StrictImageLookup,
+	}, cfg, version)
 }

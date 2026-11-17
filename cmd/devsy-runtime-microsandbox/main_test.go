@@ -21,7 +21,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const fixtureEnv = "DEVSY_MSB_ENTRYPOINT_FIXTURE"
+const (
+	fixtureEnv   = "DEVSY_MSB_ENTRYPOINT_FIXTURE"
+	imageCommand = "image"
+)
 
 var executable string
 
@@ -232,12 +235,39 @@ func runMSBFixture(args []string) int {
 	case "logs":
 		_, _ = os.Stdout.Write([]byte("logs\x00\xff"))
 	case "load":
-		if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
-			return 1
-		}
+		return loadImageFixture()
+	case imageCommand, "save":
+		return imageCLIFixture(args[0])
 	case "run":
 	default:
 		return 2
+	}
+	return 0
+}
+
+func loadImageFixture() int {
+	if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
+		return 1
+	}
+	return 0
+}
+
+func imageCLIFixture(command string) int {
+	archive := os.Getenv("DEVSY_MSB_ENTRYPOINT_IMAGE_ARCHIVE")
+	if archive == "" {
+		return 1
+	}
+	if command == imageCommand {
+		return 0
+	}
+	// #nosec G304 G703 -- the archive belongs to this test fixture.
+	file, err := os.Open(archive)
+	if err != nil {
+		return 1
+	}
+	defer func() { _ = file.Close() }()
+	if _, err := io.Copy(os.Stdout, file); err != nil {
+		return 1
 	}
 	return 0
 }

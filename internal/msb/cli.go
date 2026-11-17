@@ -18,8 +18,13 @@ import (
 // A zero value discovers msb on PATH or in its standard per-user installation directories.
 type Client struct {
 	Binary string
-	// DockerBinary selects a Docker-compatible CLI for local image snapshots.
-	DockerBinary string
+	// ImageCLI selects a Docker-compatible CLI for local image snapshots.
+	// Empty uses DefaultImageCLI.
+	ImageCLI string
+	// StrictImageLookup fails a local image lookup that errors for any reason
+	// other than a missing image. Otherwise every lookup failure falls back to
+	// the registry, which keeps registry-only workspaces working without Docker.
+	StrictImageLookup bool
 }
 
 // EnsureInstalled checks discovery without imposing provisioning version policy.

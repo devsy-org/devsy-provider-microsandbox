@@ -32,7 +32,9 @@ func (s *distributionSuite) TestManifestPinsEveryExecutableAndPreservesOptions()
 	s.Equal("DEVSY_RUNTIME_DRIVER", parsed.Agent.External.Binary)
 	s.Equal([]string{"serve"}, parsed.Agent.External.Args)
 	s.Equal("docker", parsed.Agent.External.ImageBackend)
-	s.Len(parsed.Options, 12)
+	s.Len(parsed.Options, 13)
+	s.Equal("docker", parsed.Options["MICROSANDBOX_IMAGE_BUILDER"].Default)
+	s.Equal("${MICROSANDBOX_IMAGE_BUILDER}", parsed.Agent.Docker.Path)
 	s.Contains(parsed.Options, "MSB_PATH")
 	s.Contains(parsed.Options, "MSB_LIBKRUNFW_PATH")
 	s.Equal("2048", parsed.Options["MICROSANDBOX_MEMORY"].Default)
@@ -83,10 +85,15 @@ type (
 	testAgent struct {
 		Local    bool                    `yaml:"local"`
 		Driver   string                  `yaml:"driver"`
+		Docker   testDocker              `yaml:"docker"`
 		External testExternal            `yaml:"external"`
 		Binaries map[string][]testBinary `yaml:"binaries"`
 	}
 )
+
+type testDocker struct {
+	Path string `yaml:"path"`
+}
 
 type testExternal struct {
 	Binary       string   `yaml:"binary"`

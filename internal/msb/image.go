@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"runtime"
@@ -16,6 +17,12 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
+
+// DefaultImageCLI is the Docker-compatible CLI used when none is configured.
+const DefaultImageCLI = "docker"
+
+const imageCLIHint = "set the provider option MICROSANDBOX_IMAGE_BUILDER " +
+	"to an installed Docker-compatible CLI, such as podman"
 
 // PreparedImage keeps the final image available for validation and import.
 // Close it only after all lazy image and layer reads have finished.
@@ -55,7 +62,13 @@ func (c Client) PrepareImage(
 	}
 	var prepared *PreparedImage
 	var err error
-	if builtLocally || c.localImageAvailable(ctx, ref) {
+	local := builtLocally
+	if !local {
+		if local, err = c.localImageAvailable(ctx, ref); err != nil {
+			return nil, err
+		}
+	}
+	if local {
 		prepared, err = c.localImage(ctx, ref)
 	} else {
 		prepared, err = registryImage(ctx, ref)
@@ -124,18 +137,50 @@ func (c Client) importSnapshot(
 	return nil
 }
 
-func (c Client) dockerBinary() string {
-	if c.DockerBinary != "" {
-		return c.DockerBinary
+func (c Client) imageCLI() string {
+	if c.ImageCLI != "" {
+		return c.ImageCLI
 	}
-	return "docker"
+	return DefaultImageCLI
 }
 
-func (c Client) localImageAvailable(ctx context.Context, ref string) bool {
+func (c Client) localImageAvailable(ctx context.Context, ref string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	// #nosec G204 -- configured Docker-compatible executable and fixed inspection arguments.
-	return exec.CommandContext(ctx, c.dockerBinary(), "image", "inspect", ref).Run() == nil
+	cmd := exec.CommandContext(ctx, c.imageCLI(), "image", "inspect", ref)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	switch {
+	case err == nil:
+		return true, nil
+	case !c.StrictImageLookup:
+		return false, nil
+	case ctx.Err() == nil && missingLocalImage(stderr.String()):
+		return false, nil
+	}
+	return false, fmt.Errorf("inspect final local image %q with %q: %s: %w",
+		ref, c.imageCLI(), strings.TrimSpace(stderr.String()),
+		withImageCLIHint(errors.Join(err, ctx.Err())))
+}
+
+func missingLocalImage(stderr string) bool {
+	stderr = strings.ToLower(stderr)
+	for _, marker := range []string{"no such image", "no such object", "image not known"} {
+		if strings.Contains(stderr, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func withImageCLIHint(err error) error {
+	// A name searched on PATH reports ErrNotFound; an explicit path reports ErrNotExist.
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%w; %s", err, imageCLIHint)
+	}
+	return err
 }
 
 func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, error) {
@@ -145,7 +190,7 @@ func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, err
 	}
 	prepared := &PreparedImage{archive: archive.Name()}
 	// #nosec G204 -- configured Docker-compatible executable, fixed subcommand, image argument.
-	cmd := exec.CommandContext(ctx, c.dockerBinary(), "save", ref)
+	cmd := exec.CommandContext(ctx, c.imageCLI(), "save", ref)
 	cmd.Stdout = archive
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -157,7 +202,7 @@ func (c Client) localImage(ctx context.Context, ref string) (*PreparedImage, err
 			"save final local image %q: %s: %w",
 			ref,
 			strings.TrimSpace(stderr.String()),
-			err,
+			withImageCLIHint(err),
 		)
 	}
 	prepared.image, err = tarball.ImageFromPath(prepared.archive, nil)
