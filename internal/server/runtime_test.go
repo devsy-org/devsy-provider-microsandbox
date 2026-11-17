@@ -6,6 +6,8 @@ import (
 	"io"
 	"math"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -381,6 +383,10 @@ func (s *runtimeSuite) prepareImage() {
 	s.Require().NoError(err)
 	s.Require().NoError(remote.Write(ref, empty.Image))
 	s.T().Setenv("PATH", s.T().TempDir())
+	dockerConfig := s.T().TempDir()
+	s.Require().
+		NoError(os.WriteFile(filepath.Join(dockerConfig, "config.json"), []byte("{}"), 0o600))
+	s.T().Setenv("DOCKER_CONFIG", dockerConfig)
 	prepared, err := (msb.Client{}).PrepareImage(
 		context.Background(),
 		ref.Name(),

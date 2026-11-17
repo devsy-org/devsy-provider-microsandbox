@@ -32,7 +32,7 @@ also accepts an executable path, without flags.
 
 Keep connection and environment settings consistent so builds and imports use
 the same Podman image store. When using rootless Podman, do not use `sudo`:
-rootful Podman has a separate image store. Use `podman login` for private registries.
+rootful Podman has a separate image store.
 
 Before pulling an image that Devsy did not build, the provider checks for a
 local copy with `image inspect`. That check times out after 5 seconds. With the
@@ -40,6 +40,11 @@ default `docker`, any failed check falls back to the registry. With any other
 value, only a missing image falls back; other failures, including a timeout,
 fail the workspace. Start Podman, or `podman machine` on macOS, before running
 a workspace.
+
+Registry fallback uses Docker-compatible credentials and can ignore Podman's
+login file when a Docker configuration exists. For private images authenticated
+with `podman login`, run `podman pull registry.example.com/team/image:tag`
+before starting the workspace. The provider then imports the local image.
 
 No Docker installation or compatibility symlink is needed. Podman builds images
 on the host; workspaces still run in MicroSandbox microVMs. Compose is not supported.
