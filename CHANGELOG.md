@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.3...v1.1.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/superradcompany/microsandbox/sdk/go to v0.7.15 ([#84](https://github.com/devsy-org/devsy-provider-microsandbox/issues/84)) ([74e5c14](https://github.com/devsy-org/devsy-provider-microsandbox/commit/74e5c14087975a84422cbc55bbc6c16329818e07))
+
 ## [1.1.3](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.2...v1.1.3) (2026-11-12)
 
 
