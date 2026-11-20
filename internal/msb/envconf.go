@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"slices"
 	"sort"
-	"strings"
 )
 
 const (
@@ -109,21 +107,4 @@ func (e envConf) remove() {
 // values returns the secret values for error redaction.
 func (e envConf) values() []string {
 	return e.secrets
-}
-
-// redactSecrets masks all values in one pass, longest first, so a value that is
-// a prefix of another cannot leave part of the longer one visible.
-func redactSecrets(text string, secrets []string) string {
-	sorted := slices.Clone(secrets)
-	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
-	pairs := make([]string, 0, 2*len(sorted))
-	for _, v := range sorted {
-		if v != "" {
-			pairs = append(pairs, v, "***")
-		}
-	}
-	if len(pairs) == 0 {
-		return text
-	}
-	return strings.NewReplacer(pairs...).Replace(text)
 }

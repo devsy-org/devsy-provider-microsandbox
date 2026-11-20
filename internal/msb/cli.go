@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/devsy-org/devsy/logging/redact"
 )
 
 // Client uses the CLI for lifecycle and logs and the SDK for guest execution.
@@ -60,7 +62,7 @@ func (c Client) Create(ctx context.Context, sandbox string, spec Spec) error {
 	}
 	mounts, err := resolveHostMounts(spec.Mounts)
 	if err != nil {
-		return errors.New(redactSecrets(err.Error(), secrets))
+		return errors.New(redact.New(redact.Options{Values: secrets}).Redact(err.Error()))
 	}
 	spec.Mounts = mounts
 	secrets = append(secrets, bindSourceValues(mounts)...)
@@ -183,7 +185,7 @@ func (c Client) runWithEnv(ctx context.Context, environ, args, secrets []string)
 		return fmt.Errorf(
 			"msb %s: %s: %w",
 			args[0],
-			redactSecrets(strings.TrimSpace(string(out)), secrets),
+			redact.New(redact.Options{Values: secrets}).Redact(strings.TrimSpace(string(out))),
 			err,
 		)
 	}
