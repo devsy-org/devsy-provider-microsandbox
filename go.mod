@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/devsy-org/devsy/logging v0.0.0-20261121002232-42213a6fbc3f
 	github.com/docker/cli v29.7.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/fatih/color v1.13.0 // indirect
