@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.2.0...v1.3.0) (2026-11-21)
+
+
+### Features
+
+* **logging:** adopt shared provider logging ([3655362](https://github.com/devsy-org/devsy-provider-microsandbox/commit/3655362968815532da775c691374f448ac6c20bb))
+
 ## [1.2.0](https://github.com/devsy-org/devsy-provider-microsandbox/compare/v1.1.4...v1.2.0) (2026-11-17)
 
 
