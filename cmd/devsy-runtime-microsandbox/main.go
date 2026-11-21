@@ -8,6 +8,7 @@ import (
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/config"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/msb"
 	"github.com/devsy-org/devsy-provider-microsandbox/internal/server"
+	sdklog "github.com/devsy-org/devsy-runtime-sdk/log"
 	"github.com/devsy-org/devsy-runtime-sdk/runtimev1"
 	sdkserver "github.com/devsy-org/devsy-runtime-sdk/server"
 	microsandbox "github.com/superradcompany/microsandbox/sdk/go"
@@ -41,14 +42,22 @@ func run(args []string) int {
 }
 
 func serve() int {
-	driver, err := newDriver()
+	driver, err := startupDriver()
 	if err != nil {
-		// The message goes to stderr for logs and to every RPC so Devsy shows it.
-		fmt.Fprintln(os.Stderr, err)
 		driver = server.NewConfigError(err)
 	}
 	sdkserver.Serve(driver)
 	return 0
+}
+
+func startupDriver() (runtimev1.RuntimeDriverServer, error) {
+	logger := sdklog.NewPluginLogger("microsandbox")
+	logger.Info("starting MicroSandbox provider")
+	driver, err := newDriver()
+	if err != nil {
+		logger.Error("MicroSandbox provider initialization failed; see the RPC error for details")
+	}
+	return driver, err
 }
 
 func newDriver() (runtimev1.RuntimeDriverServer, error) {

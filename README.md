@@ -49,6 +49,10 @@ before starting the workspace. The provider then imports the local image.
 No Docker installation or compatibility symlink is needed. Podman builds images
 on the host; workspaces still run in MicroSandbox microVMs. Compose is not supported.
 
+## Provider diagnostics
+
+The provider uses the SDK logger for startup diagnostics on stderr and keeps stdout for the plugin protocol. `DEVSY_LOG_LEVEL` selects `error`, `warn`, `info`, `debug`, or `trace`. `DEVSY_LOG_FORMAT` selects `json`, `text`, `plain`, `logfmt`, or `auto`. Startup defaults to JSON at `info`. Invalid settings generate a warning and fall back to the default for that setting. Startup configuration errors are available through the provider RPC.
+
 ## Local development
 
 Use existing matching runtime/firmware with absolute paths:

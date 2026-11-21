@@ -4,7 +4,7 @@ go 1.26.11
 
 require (
 	github.com/blang/semver/v4 v4.0.0
-	github.com/devsy-org/devsy-runtime-sdk v1.6.0
+	github.com/devsy-org/devsy-runtime-sdk v1.6.1-0.20261121014606-0f2b4937cc59
 	github.com/google/go-containerregistry v0.22.1
 	github.com/hashicorp/go-plugin v1.8.0
 	github.com/stretchr/testify v1.12.1
@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/devsy-org/devsy/logging v0.0.0-20261121002232-42213a6fbc3f
 	github.com/docker/cli v29.7.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/fatih/color v1.13.0 // indirect

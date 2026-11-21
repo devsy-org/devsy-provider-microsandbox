@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/devsy-org/devsy/logging/redact"
 )
 
 const (
@@ -219,11 +221,13 @@ func TestRunArgsNeverCarriesEnvOrLabelValues(t *testing.T) {
 }
 
 func TestRedactSecretsMasksValues(t *testing.T) {
-	got := redactSecrets("failed with s3cret and ok", []string{"s3cret", "", "ok"})
+	got := redact.New(redact.Options{Values: []string{"s3cret", "", "ok"}}).
+		Redact("failed with s3cret and ok")
 	if got != "failed with *** and ***" {
 		t.Errorf("redactSecrets = %q", got)
 	}
-	got = redactSecrets("echo abc-private-token", []string{"abc", "abc-private-token"})
+	got = redact.New(redact.Options{Values: []string{"abc", "abc-private-token"}}).
+		Redact("echo abc-private-token")
 	if got != "echo ***" {
 		t.Errorf("overlapping redactSecrets = %q", got)
 	}

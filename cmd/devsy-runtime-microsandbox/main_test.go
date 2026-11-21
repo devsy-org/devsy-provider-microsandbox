@@ -28,7 +28,17 @@ const (
 
 var executable string
 
+const (
+	errorLevel = "error"
+)
+
 func TestMain(m *testing.M) {
+	if os.Getenv("DEVSY_MSB_STARTUP_FIXTURE") == "1" {
+		if _, err := startupDriver(); err != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	if os.Getenv(fixtureEnv) == "1" {
 		os.Exit(msbFixture(os.Args[1:]))
 	}
@@ -75,6 +85,48 @@ func (s *entrypointSuite) TestVersionAndArgumentValidation() {
 		s.Error(err)
 		s.Empty(out)
 		s.Contains(stderr.String(), "runtime-check")
+	}
+}
+
+func (s *entrypointSuite) TestStartupLogging() {
+	for _, tc := range []struct {
+		name   string
+		level  string
+		levels []string
+	}{
+		{name: "default", levels: []string{"info", errorLevel}},
+		{name: "debug", level: "debug", levels: []string{"info", errorLevel}},
+		{name: "warn", level: "warn", levels: []string{errorLevel}},
+	} {
+		s.Run(tc.name, func() {
+			s.T().Setenv("DEVSY_MSB_STARTUP_FIXTURE", "1")
+			s.T().Setenv("DEVSY_LOG_LEVEL", tc.level)
+			s.T().Setenv("DEVSY_LOG_FORMAT", "json")
+			s.T().Setenv("MICROSANDBOX_MEMORY", "secret-canary-memory")
+			s.T().Setenv("UNRELATED_SECRET", "secret-canary-environment")
+			cmd := startupFixtureCommand(s.T())
+			cmd.Env = os.Environ()
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			err := cmd.Run()
+			var exitErr *exec.ExitError
+			s.Require().ErrorAs(err, &exitErr)
+			s.Equal(1, exitErr.ExitCode())
+			s.Empty(stdout.String())
+			s.NotContains(stderr.String(), "secret-canary")
+			decoder := json.NewDecoder(&stderr)
+			for _, level := range tc.levels {
+				var record map[string]any
+				s.Require().NoError(decoder.Decode(&record))
+				s.Equal(level, record["level"])
+				s.Equal("provider", record["component"])
+				s.Equal("microsandbox", record["provider"])
+				s.NotEmpty(record["ts"])
+				s.NotEmpty(record["msg"])
+			}
+			var extra any
+			s.ErrorIs(decoder.Decode(&extra), io.EOF)
+		})
 	}
 }
 
@@ -303,4 +355,13 @@ func fixtureVersion() string {
 		return version
 	}
 	return "0.7.13"
+}
+
+func startupFixtureCommand(t *testing.T) *exec.Cmd {
+	t.Helper()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &exec.Cmd{Path: executable, Args: []string{executable}}
 }
